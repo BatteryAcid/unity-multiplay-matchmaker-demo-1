@@ -80,21 +80,21 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
         int playerDesignation = _playerSessionStatus.Count + 1; // because this is before we add our player, designation needs to start at 1
         _playerSessionStatus.Add(clientId, new PlayerSessionStatus("p" + playerDesignation));
 
+        // NOTE: Leaving rotation as default here, as we set initial rotation in ThirdPersonCameraController
         Debug.Log("Player for client id: " + _playerSessionStatus[clientId].Designation);
         if (_playerSessionStatus[clientId].Designation == "p1")
         {
-            Debug.Log("setting player 1 position");
-            response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(-9.5f, -5f));
+            response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(5f, 9.5f));
+            Debug.Log($"setting player 1 position: {response.Position}, rotation: {response.Rotation}");
         }
         else if (_playerSessionStatus[clientId].Designation == "p2")
         {
-            Debug.Log("setting player 2 position");
-            response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(5f, 9.5f));
+            response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(-9.5f, -5f));
+            Debug.Log($"setting player 2 position: {response.Position}, rotation: {response.Rotation}");
         }
-
+        
         response.CreatePlayerObject = true;
         response.Approved = true;
-        response.Rotation = Quaternion.identity;
 
         // NOTE: post-connection logic cannot go here, the client is not connected here yet.
     }
@@ -143,7 +143,7 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
                 {
                     Debug.Log("Found the playerController...");
                     // Update some value on the player's prefab
-                    ((PlayerController)networkBehaviour).playerId.Value = playerDesignation;
+                    ((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;
                 }
             }
 
@@ -286,7 +286,19 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
     {
         Debug.Log("ServerGameManager start");
 
+        SceneManager.sceneLoaded += OnSceneLoaded;
+
         // because of how this class is manually instantiated, don't put anything important here, use Init 
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        Debug.Log("OnSceneLoaded: " + scene.name);
+        if (scene.name == "GamePlay")
+        {
+            NetworkObjectPool.Singleton.InitializePool();
+            //gameObject.GetComponentInChildren<BallPool>().InitPooledObjects();
+        }
     }
 
     public void StartServer()
