@@ -141,7 +141,8 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
                 // Only change the server side representation of PlayerController, as the network variable will sync
                 if (networkBehaviour is PlayerController && !networkBehaviour.IsLocalPlayer)
                 {
-                    Debug.Log("Found the playerController...");
+                    Debug.Log("Found the playerController, is spawned: " + networkBehaviour.IsSpawned);
+                    
                     // Update some value on the player's prefab
                     ((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;
                 }
@@ -193,26 +194,6 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
             {
                 Debug.Log("_gameStateManager is null");
             }
-
-
-
-            //// TODO: verify this calls all clients
-            //if (_messagingManager != null)
-            //{
-            //    _messagingManager.StartGameClientRpc();
-            //} else
-            //{
-            //    Debug.Log("Messaging manager is null");
-            //}
-
-
-            // tell all players the game is ready to start
-            //foreach (KeyValuePair<ulong, string> playerSession in _playerSessions)
-            //{
-            //    //GameSessionState = "STARTED";
-            //    //NetworkMessage responseMessage = new NetworkMessage("START", playerSession.Value);
-            //    //SendMessage(playerSession.Key, responseMessage);
-            //}
         }
     }
 
@@ -288,6 +269,10 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
 
         SceneManager.sceneLoaded += OnSceneLoaded;
 
+        if (ApplicationController.IsLocalTesting)
+        {
+            MaxPlayersPerSession = 1;
+        }
         // because of how this class is manually instantiated, don't put anything important here, use Init 
     }
 
@@ -297,7 +282,6 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
         if (scene.name == "GamePlay")
         {
             NetworkObjectPool.Singleton.InitializePool();
-            //gameObject.GetComponentInChildren<BallPool>().InitPooledObjects();
         }
     }
 
@@ -363,13 +347,11 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
 
     }
 
-    public void Init(string setting, GameStateManager gameStateManager)//, MessagingManager messagingManager)
+    public void Init(string setting, GameStateManager gameStateManager)
     {
         Debug.Log(setting);
 
         _gameStateManager = gameStateManager;
-
-        //_messagingManager = messagingManager;//(ClientMessagingManager) messagingManager;
 
         _networkManager = NetworkManager.Singleton;
 
@@ -380,6 +362,18 @@ public class ServerGameManager : NetworkBehaviour, IGameManager
         _networkManager.OnServerStarted += OnNetworkReady;
         _networkManager.OnClientDisconnectCallback += OnClientDisconnect;
         _networkManager.OnClientConnectedCallback += OnClientConnected;
+
+        if (ApplicationController.IsLocalTesting)
+        {
+            // Start server here when local testing
+            var unityTransport = _networkManager.gameObject.GetComponent<UnityTransport>();
+            _networkManager.NetworkConfig.NetworkTransport = unityTransport;
+
+            // set port based on server config
+            unityTransport.SetConnectionData("0.0.0.0", (ushort) 9011);
+
+            _networkManager.StartServer();
+        }
 
     }
 

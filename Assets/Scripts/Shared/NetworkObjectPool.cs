@@ -110,7 +110,7 @@ public class NetworkObjectPool : NetworkBehaviour
     /// </summary>
     private void RegisterPrefabInternal(GameObject prefab, int prewarmCount)
     {
-        Debug.Log("RegisterPrefabInternal");
+        Debug.Log("RegisterPrefabInternal with prewarmCount: " + prewarmCount);
         prefabs.Add(prefab);
 
         var prefabQueue = new Queue<NetworkObject>();
@@ -145,7 +145,7 @@ public class NetworkObjectPool : NetworkBehaviour
             Debug.Log("GetNetworkObjectInternal prefab was null");
         }
 
-        Debug.Log("pooledObjects length: " + pooledObjects.Count);
+        // Debug.Log("pooledObjects length: " + pooledObjects.Count);
 
         var queue = pooledObjects[prefab];
 

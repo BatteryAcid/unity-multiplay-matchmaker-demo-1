@@ -35,7 +35,8 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         HoldLastStatus
     }
     private MatchButtonStatusEnum _matchButtonStatus = MatchButtonStatusEnum.FindMatch;
-    public MatchplayMatchmaker Matchmaker { get; private set; }
+    public IMatchmaker Matchmaker { get; private set; }
+    //public MatchplayMatchmaker Matchmaker { get; private set; }
 
     public void Init(string setting, GameStateManager gameStateManager)//, MessagingManager messagingManager)
     {
@@ -95,15 +96,13 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         return matchmakingResult;
     }
 
-    // Start is called before the first frame update
-    async void Start()
+    private void LocalTestingSetup()
     {
-        Debug.Log("ClientGameManager start");
+        Matchmaker = new MockMatchmaker();
+    }
 
-        // setup the find match button 
-        _findMatchButton = GameObject.Find("FindMatch").GetComponent<Button>();
-        _findMatchButton.onClick.AddListener(OnFindMatchPressed);
-
+    private async Task Setup()
+    {
         try
         {
             // Call Initialize async from SDK
@@ -117,6 +116,27 @@ public class ClientGameManager : MonoBehaviour, IGameManager
 
         // Not using any authentication in this demo, so must set anonymous authentication
         await MockSignIn();
+
+        Matchmaker = new MatchplayMatchmaker();
+    }
+
+    // Start is called before the first frame update
+    async void Start()
+    {
+        Debug.Log("ClientGameManager start");
+
+        // setup the find match button 
+        _findMatchButton = GameObject.Find("FindMatch").GetComponent<Button>();
+        _findMatchButton.onClick.AddListener(OnFindMatchPressed);
+
+        if (!ApplicationController.IsLocalTesting)
+        {
+            await Setup();
+        }
+        else
+        {
+            LocalTestingSetup();
+        }
     }
 
     // Update is called once per frame
@@ -191,7 +211,7 @@ public class ClientGameManager : MonoBehaviour, IGameManager
     {
         _matchButtonStatus = MatchButtonStatusEnum.Searching;
 
-        Matchmaker = new MatchplayMatchmaker();
+        //Matchmaker = new MatchplayMatchmaker();
         MatchmakingResult matchmakingResult = await FindMatchAsync();
 
         // once we get the match ip and port we can connect to server

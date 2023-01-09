@@ -5,62 +5,54 @@ using UnityEngine;
 
 public class ApplicationController : MonoBehaviour
 {
-    private IGameManager _gameManager;
-    private GameStateManager _gameStateManager;
-    //private IMessagingManager _messagingManager;
-    //private MessagingManager _messagingManager;
+    // NOTE: this probably isn't the best way to do this, you'd want to use a
+    // command line argument or a Define Symbol to toggle deployment environment.
+    public static bool IsLocalTesting = true;
     public static bool IsServer = false;
 
-    // TODO: SERVER ONLY
-    MultiplayManager _multiplayManager;
+    // shared
+    private IGameManager _gameManager;
+    private GameStateManager _gameStateManager;
 
-    void Start()
+    // server only
+    private MultiplayManager _multiplayManager;
+
+    private void ServerSetup()
     {
-        //_messagingManager = FindObjectOfType<MessagingManager>();
-        //if (_messagingManager == null)
-        //{
-        //    Debug.Log("messaging manager is null");
-        //}
+        Debug.Log("Server build running.");
+        IsServer = true;
 
-        // If this is a build and we are headless, we are a server
-        // Note: could also add an ENV variable
-        if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+        _gameManager = FindObjectOfType<ServerGameManager>();
+
+        // Don't need Multiplay services when local testing
+        if (!IsLocalTesting)
         {
-            // server
-            Debug.Log("Server build running.");
-            IsServer = true;
-
-            _gameManager = FindObjectOfType<ServerGameManager>();//gameObject.AddComponent<ServerGameManager>();
-
             // TODO: probably better way to do this...
             _multiplayManager = gameObject.AddComponent<MultiplayManager>();
             _multiplayManager.Setup((ServerGameManager)_gameManager);
+        }
+    }
 
-            //_messagingManager = gameObject.AddComponent<ClientMessagingManager>();
+    private void ClientSetup()
+    {
+        Debug.Log("Client build running.");
+        _gameManager = gameObject.AddComponent<ClientGameManager>();
+    }
 
-
-
-            //((ServerGameManager)_gameManager).Setup(_multiplayManager);
-
-            // TODO: remove, only to test below line which wont be here.
-            // _gameManager.Init("server"); 
-            //((ServerGameManager)_gameManager).StartServer();
+    void Start()
+    {
+        // NOTE: this is one way to test if we are a server build or not.
+        // You can also use environment variables or Define Symbols
+        if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+        {
+            ServerSetup();
         }
         else
         {
-            // client
-            Debug.Log("Client build running.");
-            _gameManager = gameObject.AddComponent<ClientGameManager>();
-
-            //_messagingManager = gameObject.AddComponent<ServerMessagingManager>();
+            ClientSetup();
         }
 
         _gameStateManager = FindObjectOfType<GameStateManager>();
-        _gameManager.Init(IsServer ? "server manager" : "client manager", _gameStateManager);//, _messagingManager);
-    }
-
-    void Update()
-    {
-
+        _gameManager.Init(IsServer ? "server manager" : "client manager", _gameStateManager);
     }
 }

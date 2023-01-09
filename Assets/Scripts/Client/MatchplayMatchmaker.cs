@@ -27,7 +27,7 @@ public class MatchmakingResult
     public string resultMessage;
 }
 
-public class MatchplayMatchmaker : IDisposable
+public class MatchplayMatchmaker : IMatchmaker
 {
     private string _lastUsedTicket;
     private bool _isMatchmaking = false;

@@ -6,7 +6,7 @@ using Unity.Netcode.Components;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using static UnityEngine.GraphicsBuffer;
+using System.Threading.Tasks;
 
 // TODO: can this be disabled for non-local player?
 public class PlayerController : NetworkBehaviour
@@ -20,12 +20,16 @@ public class PlayerController : NetworkBehaviour
     private float _throwKeyPressedStartTime = 0f;
     private BallActionHandler _ballActionHandler;
 
-    private float maxSpeed = 10;
+    private float _maxSpeed = 8;
+    private float _movementSpeedWhileThrowing = 0.5f;
+    private float _currentSpeedLimit = 0;
     private float inputHorX, inputVertY;
 
+    public NetworkVariable<bool> throwing = new NetworkVariable<bool>(false);
     public NetworkVariable<FixedString32Bytes> playerDesignation = new NetworkVariable<FixedString32Bytes>();
     private bool _isPlayerDesignationSet = false;
     private bool _isPlayerControllerReady = false;
+    private float _disableMovementTime = 0f;
 
     private const float _minX = -9.5f, _maxX = 9.5f, _minZp1 = 5f, _maxZp1 = 10f, _minZp2 = -10f, _maxZp2 = -5f;
 
@@ -126,34 +130,41 @@ public class PlayerController : NetworkBehaviour
 
         if (IsServer)
         {
+            // TODO: how to get player object here??
+            // I just want to setup the ball - maybe just do that after first throw...???
             _ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust);
+                
         }
     }
 
-    private bool throwing = false;
+    //[ServerRpc]
+    //public void ReadyBallServerRpc(ServerRpcParams serverRpcParams = default)
+    //{
+    //    Debug.Log("ReadyBallServerRpc");
+    //    var clientId = serverRpcParams.Receive.SenderClientId;
+    //    Debug.Log("Clientid: " + clientId);
+    //    NetworkObject player = NetworkManager.Singleton.ConnectedClients[clientId].PlayerObject;
+    //    if (player == null)
+    //    {
+    //        Debug.Log("Player was null");
+    //    }
+    //    _ballActionHandler.ReadyBallForThrow(Player.transform.position, Player.transform.forward, Player, player);
+    //    throwing = true;
+    //}
 
     [ServerRpc]
-    public void ReadyBallServerRpc(ServerRpcParams serverRpcParams = default)
+    public void SoftReadyNextBallToThrowServerRpc()
     {
-        Debug.Log("ReadyBallServerRpc");
-        var clientId = serverRpcParams.Receive.SenderClientId;
-        Debug.Log("Clientid: " + clientId);
-        NetworkObject player = NetworkManager.Singleton.ConnectedClients[clientId].PlayerObject;
-        if (player == null)
-        {
-            Debug.Log("Player was null");
-        }
-        _ballActionHandler.ReadyBallForThrow(Player.transform.position, Player.transform.forward, player);
-        throwing = true;
+        throwing.Value = true;
+        _ballActionHandler.SoftReadyNextBallToThrow();
     }
 
     [ServerRpc]
     public void ThrowBallServerRpc(Vector3 cameraForwardVector, float throwKeyPressedTime)
     {
-        Debug.Log("ThrowBallServerRpc: " + cameraForwardVector.ToString() + ", throwKeyPressedTime: " + throwKeyPressedTime);
-        //NetworkObject nextBallToThrow = _ballActionHandler.GetNextBallToThrow(); // TODO: probably not necessary
-        throwing = false;
-        _ballActionHandler.ThrowBall(Player.transform.position, Player.transform.forward, cameraForwardVector, throwKeyPressedTime);//, nextBallToThrow);
+        //Debug.Log("ThrowBallServerRpc: " + cameraForwardVector.ToString() + ", throwKeyPressedTime: " + throwKeyPressedTime);
+        _ballActionHandler.ThrowBall(cameraForwardVector, throwKeyPressedTime, Player);
+        throwing.Value = false;
     }
 
     //Detect collisions between the GameObjects with Colliders attached
@@ -184,7 +195,7 @@ public class PlayerController : NetworkBehaviour
     }
 
     // Update is called once per frame
-    void Update()
+    async void Update()
     {
         if (IsLocalPlayer)
         {
@@ -197,9 +208,9 @@ public class PlayerController : NetworkBehaviour
             }
 
             // limit player speed
-            if (Player.velocity.magnitude > maxSpeed)
+            if (Player.velocity.magnitude > _maxSpeed)
             {
-                Player.velocity = Vector3.ClampMagnitude(Player.velocity, maxSpeed);
+                Player.velocity = Vector3.ClampMagnitude(Player.velocity, _maxSpeed);
             }
 
             // actual player update is performed in FixedUpdate
@@ -209,7 +220,10 @@ public class PlayerController : NetworkBehaviour
             if (Input.GetMouseButtonDown(0))
             {
                 _throwKeyPressedStartTime = Time.time;
-                ReadyBallServerRpc();
+                //ReadyBallServerRpc();
+                _disableMovementTime = Time.time + .5f;
+                SoftReadyNextBallToThrowServerRpc();
+                //ThrowBallServerRpc(PlayerCamera.forward, 1.6f);
             }
 
             // TODO: should probably wrap this with a condition of playerControllerReady
@@ -217,6 +231,15 @@ public class PlayerController : NetworkBehaviour
             {
                 // Server RPC throw ball
                 float throwKeyPressedTime = Time.time - _throwKeyPressedStartTime;
+
+                // This is here to allow for a couple extra frames of player movement at the "throw speed",
+                // so the server has a chance to buffer a few frames of player position at that speed.  
+                // This helps keep the ball spawn placement closer to the player versus if we tried to spawn
+                // it while player was at full speed. In that case, it could be off by a meter or so on the
+                // client's local screen because of the round trip latency.
+                // You could hide this lag even more with a fun throw animation or something.
+                await WaitThenThrow();
+
                 ThrowBallServerRpc(PlayerCamera.forward, throwKeyPressedTime);
             }
 
@@ -259,43 +282,34 @@ public class PlayerController : NetworkBehaviour
     //private Vector3 _distSinceLast;
     //private float _nextDistanceSnapshotTime = 0f;
 
+    private async Task WaitThenThrow()
+    {
+        await Task.Delay(300);
+    }
+
     void FixedUpdate()
     {
+        if (throwing.Value == true)
+        {
+            _currentSpeedLimit = _movementSpeedWhileThrowing;
+        } else
+        {
+            _currentSpeedLimit = _maxSpeed;
+        }
+
         // This is linked to the project settings under Time > Fixed Timestamp
         // Currently set to .02 seconds, which is 20ms
+        //TODO remove.  && Time.time > _disableMovementTime
+        //throwing.Value != true &&
         if (IsLocalPlayer && _isPlayerControllerReady)
         {
             PlayerMovement(inputHorX, inputVertY);
         }
-
-        //if (IsServer)
-        //{
-        //    // TODO: new testing client movement extrapolation
-        //    if (Time.time > _nextDistanceSnapshotTime)
-        //    {
-        //        if (_lastPos == Vector3.zero)
-        //        {
-        //            _lastPos = Player.position;
-        //            _distSinceLast = Vector3.zero;
-        //        }
-        //        else
-        //        {
-        //            Vector3 delta = Player.transform.position - _lastPos;
-        //            float distanceX = delta.x;
-        //            float distanceY = delta.y;
-        //            float distanceZ = delta.z;
-
-        //            _lastPos = Player.position;
-        //            _distSinceLast = new Vector3(distanceX, distanceY, distanceZ);
-        //            _nextDistanceSnapshotTime = Time.time + .25f;
-        //        }
-        //    }
-        //}
     }
 
     private void PlayerMovement(float x, float y)
     {
-        Vector3 playerMovementRotation = new Vector3(x, 0f, y) * maxSpeed;
+        Vector3 playerMovementRotation = new Vector3(x, 0f, y) * _currentSpeedLimit;
 
         Vector3 camRotation = PlayerCamera.transform.forward;
         camRotation.y = 0f; // zero out camera's vertical axis so it doesn't make them fly

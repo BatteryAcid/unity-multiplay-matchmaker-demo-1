@@ -42,26 +42,35 @@ public class BallActionHandler
     //    return NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);
     //}
 
-    public void ReadyBallForThrow(Vector3 playerPosition, Vector3 playerForward, NetworkObject player)
-    {
-        _nextBallToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);
-        _nextBallToThrow.transform.position = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
+    //public void ReadyBallForThrow(Vector3 playerPosition, Vector3 playerForward, Rigidbody player, NetworkObject playerNO)
+    //{
+    //    _nextBallToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);
+    //    _nextBallToThrow.transform.position = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
 
-        // TODO: See if parenting to the NetworkObject of the player prefab root helps synchronize the position, probably won't but still want to try.
-        // Parenting to the RigidBody player object won't work i think, because it's not a network object.
-        // https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/networkobject-parenting#only-a-server-or-a-host-can-parent-networkobjects
+    //    //BallManager ballManager = _nextBallToThrow.GetComponent<BallManager>();
+    //    //ballManager.Player = player;
 
-        NetworkObject playerNO = player.GetComponentInChildren<NetworkObject>();
-        Debug.Log(playerNO.name + ", " + playerNO.transform.name + ", " + playerNO.gameObject.name);
+    //    //// TODO: See if parenting to the NetworkObject of the player prefab root helps synchronize the position, probably won't but still want to try.
+    //    //// Parenting to the RigidBody player object won't work i think, because it's not a network object.
+    //    //// https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/networkobject-parenting#only-a-server-or-a-host-can-parent-networkobjects
 
-        bool worked1 = _nextBallToThrow.TrySetParent(playerNO);// player.transform);
-        if (worked1)
-        {
-            Debug.Log("worked: playerNO");
-        }
+    //    //NetworkObject playerNO = player.GetComponentInChildren<NetworkObject>();
+    //    //Debug.Log(playerNO.name + ", " + playerNO.transform.name + ", " + playerNO.gameObject.name);
 
-        _nextBallToThrow.Spawn(true);
-    }
+    //    //// TODO: this isn't working
+    //    //bool worked1 = _nextBallToThrow.TrySetParent(playerNO);// player.transform);
+    //    //if (worked1)
+    //    //{
+    //    //    Debug.Log("worked: playerNO");
+    //    //} else
+    //    //{
+    //    //    Debug.Log("failed: playerNO");
+    //    //}
+
+    //    //_nextBallToThrow.Spawn(true);
+
+    //    //_nextBallToThrow.enabled = false;
+    //}
 
     // Don't think this is necessary as the we spawned above with ready, which means auto position network transform takes over
     //public void UpdateReadyBallPosition(Vector3 playerPosition, Vector3 playerForward)
@@ -72,56 +81,30 @@ public class BallActionHandler
     //    }
     //}
 
-    //public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime)
-    public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime) //, NetworkObject ballToThrow)
+    public void SoftReadyNextBallToThrow()
     {
-        Debug.Log("Throw ball was: " + _nextBallToThrow == null ? "null" : "good");
+        _nextBallToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);//BallPool.SharedInstance.GetPooledObject();
+    }
 
-        //NetworkObject ballToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);//BallPool.SharedInstance.GetPooledObject();
+    //public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime)
+    public void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player) //, NetworkObject ballToThrow)
+    {
+        // Debug.Log("Throw ball was: " + _nextBallToThrow == null ? "null" : "good");
 
-        if (_nextBallToThrow != null && Time.time > _nextThrowTime)
-        {
-            Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
-
-            //Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
-
-            NetworkObject throwingBall = _nextBallToThrow;
-
-            //throwingBall.transform.position = spawnPos;
-            //throwingBall.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
-
-            Vector3 throwVector = DetermineVectorOfThrow(cameraForwardVector);
-            Debug.Log("Throw vector: " + throwVector);
-
-            Vector3 throwWithThrust = throwVector * DetermineThrustOfBall(throwKeyPressedTime);
-            Debug.Log("throwWithThrust: " + throwWithThrust);
-
-            //Debug.Log("name: " + ballToThrow.name);
-            //ballToThrow.gameObject.SetActive(true); // TODO: probably not needed as the GetNetworkObject call does this.
-
-            Debug.Log("Spawn before");
-            //throwingBall.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
-            throwingBall.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
-
-
-            // TODO: does this work?
-            // TODO: no because this isn't a monoBehaviour... need to refactor this class maybe...
-            //DespawnTimer(ballToThrow);
-
-            //_lastBall = ballToThrow;
-            _nextThrowTime = Time.time + _minThrowRate;
-
-            _nextBallToThrow = null;
-        }
-        
-        //if (ballToThrow != null && Time.time > _nextThrowTime)
+        //if (_nextBallToThrow != null && Time.time > _nextThrowTime)
         //{
         //    Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
 
-        //    Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
+        //    //Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
 
-        //    ballToThrow.transform.position = spawnPos;
-        //    ballToThrow.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
+        //    NetworkObject throwingBall = _nextBallToThrow;
+
+        //    //BallManager ballManager = throwingBall.GetComponent<BallManager>();
+        //    //ballManager.IsThrown = true;
+        //    //Debug.Log("ballManager.IsThrown: " + ballManager.IsThrown);
+
+        //    //throwingBall.transform.position = spawnPos;
+        //    //throwingBall.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
 
         //    Vector3 throwVector = DetermineVectorOfThrow(cameraForwardVector);
         //    Debug.Log("Throw vector: " + throwVector);
@@ -133,8 +116,10 @@ public class BallActionHandler
         //    //ballToThrow.gameObject.SetActive(true); // TODO: probably not needed as the GetNetworkObject call does this.
 
         //    Debug.Log("Spawn before");
-        //    ballToThrow.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
-        //    ballToThrow.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
+
+        //    //throwingBall.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
+        //    throwingBall.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
+        //    throwingBall.Spawn(true);
 
 
         //    // TODO: does this work?
@@ -143,7 +128,43 @@ public class BallActionHandler
 
         //    //_lastBall = ballToThrow;
         //    _nextThrowTime = Time.time + _minThrowRate;
+
+        //    _nextBallToThrow = null;
         //}
+
+        //NetworkObject ballToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);//BallPool.SharedInstance.GetPooledObject();
+
+        NetworkObject ballToThrow = _nextBallToThrow;
+
+        if (ballToThrow != null && Time.time > _nextThrowTime)
+        {
+            // Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
+
+            //Debug.Log("pos1: " + Player.transform.position);
+            Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(Player.transform.position, Player.transform.forward);//GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
+
+            ballToThrow.transform.position = spawnPos;
+            //ballToThrow.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
+
+            Vector3 throwVector = DetermineVectorOfThrow(cameraForwardVector);
+            // Debug.Log("Throw vector: " + throwVector);
+
+            Vector3 throwWithThrust = throwVector * DetermineThrustOfBall(throwKeyPressedTime);
+            // Debug.Log("throwWithThrust: " + throwWithThrust);
+
+            //Debug.Log("Spawn before");
+            //Debug.Log("pos2: " + Player.transform.position);
+            ballToThrow.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
+            ballToThrow.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
+
+
+            // TODO: does this work?
+            // TODO: no because this isn't a monoBehaviour... need to refactor this class maybe...
+            //DespawnTimer(ballToThrow);
+
+            //_lastBall = ballToThrow;
+            _nextThrowTime = Time.time + _minThrowRate;
+        }
 
         //if (_ball != null && Time.time > _nextThrowTime)
         //{
@@ -187,23 +208,23 @@ public class BallActionHandler
 
     private float DetermineThrustOfBall(float throwKeyPressedTime)
     {
-        Debug.Log("throwKeyPressedTime: " + throwKeyPressedTime);
+        // Debug.Log("throwKeyPressedTime: " + throwKeyPressedTime);
 
-        float thrustOfBall = _baseBallThrust * 1.25f;
-        if (throwKeyPressedTime >= 1.5)
+        float thrustOfBall = _baseBallThrust;
+        if (throwKeyPressedTime <= .5)
         {
-            thrustOfBall = _baseBallThrust * 2.5f;
+            thrustOfBall = _baseBallThrust * 1.5f;
         }
-        else if (throwKeyPressedTime >= 1)
+        else if (throwKeyPressedTime <= .85)
         {
-            thrustOfBall = _baseBallThrust * 2.0f;
+            thrustOfBall = _baseBallThrust * 2f;
         }
-        else if (throwKeyPressedTime >= .5)
+        else if (throwKeyPressedTime >= .85)
         {
-            thrustOfBall = _baseBallThrust * 1.75f;
+            thrustOfBall = _baseBallThrust * 3f;
         }
 
-        Debug.Log("Throw speed: " + thrustOfBall);
+        // Debug.Log("Throw speed: " + thrustOfBall);
 
         return thrustOfBall;
     }
