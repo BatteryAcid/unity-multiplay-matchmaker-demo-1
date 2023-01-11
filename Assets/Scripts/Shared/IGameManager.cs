@@ -4,5 +4,5 @@ using UnityEngine;
 
 public interface IGameManager 
 {
-    void Init(string setting, GameStateManager gameStateManager);
+    void Init(string setting);
 }

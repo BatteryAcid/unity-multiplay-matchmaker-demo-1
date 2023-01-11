@@ -331,7 +331,6 @@ GameObject:
   - component: {fileID: 228435224}
   - component: {fileID: 228435221}
   - component: {fileID: 228435228}
-  - component: {fileID: 228435229}
   m_Layer: 0
   m_Name: TestPlayer
   m_TagString: Untagged
@@ -486,21 +485,6 @@ MonoBehaviour:
         byte0027: 0
         byte0028: 0
         byte0029: 0
---- !u!114 &228435229
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 228435220}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e7a7373a95a3d4641bf10ea35c9c0bad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  pooledObjects: []
-  objectToPool: {fileID: 456066915130080702, guid: cde4f9ef8b9a348a6ba9304f4785417c, type: 3}
-  amountToPool: 20
 --- !u!1 &447695285
 GameObject:
   m_ObjectHideFlags: 0

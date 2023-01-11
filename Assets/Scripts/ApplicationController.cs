@@ -12,7 +12,6 @@ public class ApplicationController : MonoBehaviour
 
     // shared
     private IGameManager _gameManager;
-    private GameStateManager _gameStateManager;
 
     // server only
     private MultiplayManager _multiplayManager;
@@ -29,7 +28,7 @@ public class ApplicationController : MonoBehaviour
         {
             // TODO: probably better way to do this...
             _multiplayManager = gameObject.AddComponent<MultiplayManager>();
-            _multiplayManager.Setup((ServerGameManager)_gameManager);
+            _multiplayManager.Init((ServerGameManager)_gameManager);
         }
     }
 
@@ -52,7 +51,6 @@ public class ApplicationController : MonoBehaviour
             ClientSetup();
         }
 
-        _gameStateManager = FindObjectOfType<GameStateManager>();
-        _gameManager.Init(IsServer ? "server manager" : "client manager", _gameStateManager);
+        _gameManager.Init(IsServer ? "server manager" : "client manager");
     }
 }

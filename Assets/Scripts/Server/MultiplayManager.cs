@@ -13,40 +13,99 @@ public class MultiplayManager : MonoBehaviour
     public bool Matchmaking = false;
     public bool Backfill = false;
 
-    //public MatchmakingResults MatchmakingResults;
-
     private string _allocationId;
-
     private int _maxPlayers = 2; // TODO: This can be hardcoded or dynamic based on your games requirements.
+    private bool _sqpInitialized = false;
     private MultiplayEventCallbacks _multiplayEventCallbacks;
     private IServerEvents _serverEvents;
     private IServerQueryHandler _serverQueryHandler;
-    private bool _sqpInitialized = false;
-    // private SessionRequest _sessionRequest;
+    private ServerGameManager _serverGameManager; // server used to communicate with client
 
-    // server used to communicate with client
-    private ServerGameManager _serverGameManager;
-
-    private async void Awake()
+    private async void StartGame()
     {
-        Debug.Log("MultiplayManager.Awake");
-        //Debug.Log(UnityServices.State);
+        if (_serverGameManager == null)
+        {
+            // TODO: remove this check once testing is over
+            Debug.Log("server is null");
+        }
+        else
+        {
+            Debug.Log("Starting server...");
 
+            _serverGameManager.StartServer();
+
+            // this example game doesn't have anything else to setup or assets to load, inform multiplay we are ready to accept connections
+            await MultiplayService.Instance.ReadyServerForPlayersAsync();
+        }
+    }
+
+    // Unity Multiplay-matchmaking services calls this function once the server is ready.
+    // At this point we can start the game, which means starting our network server.
+    private void OnAllocate(MultiplayAllocation allocation)
+    {
+        Debug.Log("Server Allocated.");
+
+        if (allocation != null)
+        {
+            if (string.IsNullOrEmpty(allocation.AllocationId))
+            {
+                Debug.LogError("Allocation id was null");
+                return;
+            }
+            _allocationId = allocation.AllocationId;
+            Debug.Log("Allocation id: " + _allocationId);
+
+            StartGame();
+        }
+        else
+        {
+            Debug.LogError("Allocation was null");
+        }
+    }
+
+    private async void InitializeSqp()
+    {
+        Debug.Log("BAD InitializeSqp");
+
+        // Note: looks like this can be set with default values first, then updated if the values come in later,
+        // which should be followed by a call to UpdateServerCheck
+        // SDK 3
         try
         {
-            // Call Initialize async from SDK
-            await UnityServices.InitializeAsync(); // SDK 1
+            _serverQueryHandler = await MultiplayService.Instance.StartServerQueryHandlerAsync(
+                (ushort)_maxPlayers, //(ushort)_sessionRequest.MaxPlayers,
+                "DisplayName", //_sessionRequest.DisplayName,
+                "BADGameType", //_sessionRequest.GameplayType.ToString().ToLowerInvariant(),
+                "0",//Application.version,
+                "BADMap");
+
+            // TODO: for testing just added one player
+            // TODO: refactor this to an actual count based on players joining
+            _serverQueryHandler.CurrentPlayers = (ushort)1;
+
+            _sqpInitialized = true; // triggers a call to UpdateServerCheck
         }
         catch (Exception e)
         {
-            Debug.Log("InitializeAsync failed!");
-            Debug.Log(e);
+            Debug.LogError("Exception why running StartServerQueryHandlerAsync: " + e.Message);
         }
+    }
 
+    private void Update()
+    {
+        // should just run once
+        if (!_sqpInitialized) InitializeSqp();
+
+        // always gets called here
+        if (_serverQueryHandler != null)
+        {
+            _serverQueryHandler.UpdateServerCheck(); // SDK 4
+        }
     }
 
     // TODO: maybe the SDK calls shouldn't be here, probably should be on "Find match" click
-    public async void Setup(ServerGameManager server)
+    // TODO: this should probably be an interface where we don't care which server implementation we're using, just used to start server.
+    public async void Init(ServerGameManager server)
     {
         // set reference to our network server
         _serverGameManager = server;
@@ -80,10 +139,12 @@ public class MultiplayManager : MonoBehaviour
         //Debug.Log(QualitySettings.vSyncCount);
 
         // Fixes issue with excessive CPU, not sure if vSyncCount is necessary.
+        // https://docs.unity.com/game-server-hosting/guides/troubleshooting.html#Servers_using_too_much_CPU
+        // TODO: Try setting NetworkManager to match this tick rate 60 and see if latency improves
         Application.targetFrameRate = 60;
-        // Debug.Log(Application.targetFrameRate);
-
         QualitySettings.vSyncCount = 0;
+
+        // Debug.Log(Application.targetFrameRate);
         // Debug.Log(QualitySettings.vSyncCount);
 
         // Setup allocations
@@ -92,118 +153,25 @@ public class MultiplayManager : MonoBehaviour
         _multiplayEventCallbacks.Deallocate += OnDeallocate;
         _multiplayEventCallbacks.Error += OnError;
         _multiplayEventCallbacks.SubscriptionStateChanged += OnSubscriptionStateChanged;
-
-        //StartGame();
-        // TODO: testing, remove ^
     }
 
-    private void Update()
+    private async void Awake()
     {
-        // should just run once
-        if (!_sqpInitialized) InitializeSqp();
+        Debug.Log("MultiplayManager.Awake");
 
-        // always gets called here
-        if (_serverQueryHandler != null)
-        {
-            _serverQueryHandler.UpdateServerCheck(); // SDK 4
-        }
-    }
-
-    private async void InitializeSqp()
-    {
-        Debug.Log("BAD InitializeSqp");
-
-        // Note: looks like this can be set with default values first, then updated if the values come in later,
-        // which should be followed by a call to UpdateServerCheck
-        // SDK 3
         try
         {
-            _serverQueryHandler = await MultiplayService.Instance.StartServerQueryHandlerAsync(
-                (ushort)_maxPlayers, //(ushort)_sessionRequest.MaxPlayers,
-                "DisplayName", //_sessionRequest.DisplayName,
-                "BADGameType", //_sessionRequest.GameplayType.ToString().ToLowerInvariant(),
-                "0",//Application.version,
-                "BADMap");
-
-            // TODO: for testing just added one player
-            _serverQueryHandler.CurrentPlayers = (ushort)1;
-
-            _sqpInitialized = true; // triggers a call to UpdateServerCheck
-        } catch(Exception e)
+            // Call Initialize async from SDK
+            await UnityServices.InitializeAsync(); // SDK 1
+        }
+        catch (Exception e)
         {
-            Debug.LogError("Exception why running StartServerQueryHandlerAsync: " + e.Message);
+            Debug.Log("InitializeAsync failed!");
+            Debug.Log(e);
         }
     }
 
-    private void OnAllocate(MultiplayAllocation allocation)
-    {
-        Debug.Log("BAD Allocated");
-        if (allocation != null)
-        {
-            if (string.IsNullOrEmpty(allocation.AllocationId))
-            {
-                Debug.Log("Allocation id was null");
-                return;
-            }
-            _allocationId = allocation.AllocationId;
-            Debug.Log("allocation id: " + _allocationId);
-
-            StartGame();
-        }
-        else
-        {
-            Debug.Log("Allocation was null");
-        }
-    }
-
-    // TODO: I don't think this one is necessary with this setup... we either get it right away or we get it through onAllocation.
-    async Task<string> AwaitAllocationID()
-    {
-        var config = MultiplayService.Instance.ServerConfig;
-        Debug.Log($"Awaiting Allocation. Server Config is:\n" +
-            $"-ServerID: {config.ServerId}\n" +
-            $"-AllocationID: {config.AllocationId}\n" +
-            $"-Port: {config.Port}\n" +
-            $"-QPort: {config.QueryPort}\n" +
-            $"-logs: {config.ServerLogDirectory}");
-
-        //Waiting on OnMultiplayAllocation() event (Probably wont ever happen in a matchmaker scenario)
-        while (string.IsNullOrEmpty(_allocationId))
-        {
-            var configID = config.AllocationId;
-
-            if (!string.IsNullOrEmpty(configID) && string.IsNullOrEmpty(_allocationId))
-            {
-                Debug.Log($"Config had AllocationID: {configID}");
-                _allocationId = configID;
-            }
-
-            Debug.Log("Retry allocation id...");
-            await Task.Delay(100);
-        }
-
-        return _allocationId;
-    }
-
-    private void OnError(MultiplayError error)
-    {
-        Debug.Log("OnError");
-        //LogServerConfig();
-        Debug.Log(error.Reason);
-        // throw new NotImplementedException();
-    }
-
-    private void OnDeallocate(MultiplayDeallocation deallocation)
-    {
-        Debug.Log("Deallocated");
-        //LogServerConfig();
-
-        //MatchmakingResults = null;
-
-        // Hack for now, just exit the application on deallocate
-        Application.Quit();
-    }
-
+    // TODO: not sure what this is for yet...
     private void OnSubscriptionStateChanged(MultiplayServerSubscriptionState state)
     {
         switch (state)
@@ -226,21 +194,16 @@ public class MultiplayManager : MonoBehaviour
         }
     }
 
-    private async void StartGame()
+    private void OnError(MultiplayError error)
     {
-        if (_serverGameManager == null)
-        {
-            // TODO: remove this check once testing is over
-            Debug.Log("server is null");
-        }
-        else
-        {
-            Debug.Log("Starting server...");
-            _serverGameManager.StartServer();
-            // _server.StartTCPServer(MultiplayService.Instance.ServerConfig.Port, _maxPlayers);
+        Debug.Log("MultiplayManager OnError: " + error.Reason);
+    }
 
-            // this example game doesn't have anything else to setup or assets to load, inform multiplay we are ready to accept connections
-            await MultiplayService.Instance.ReadyServerForPlayersAsync();
-        }
+    private void OnDeallocate(MultiplayDeallocation deallocation)
+    {
+        Debug.Log("Deallocated");
+
+        //TODO: Hack for now, just exit the application on deallocate
+        Application.Quit();
     }
 }

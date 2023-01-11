@@ -133,7 +133,6 @@ GameObject:
   m_Component:
   - component: {fileID: 2260887}
   - component: {fileID: 2260886}
-  - component: {fileID: 2260888}
   m_Layer: 0
   m_Name: GameStateManager
   m_TagString: Untagged
@@ -172,20 +171,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 6
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2260888
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2260885}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aa4d58ff6c3f946c688b0115f3aabd83, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  CurrentGameState:
-    m_InternalValue: 0
 --- !u!1 &361758066
 GameObject:
   m_ObjectHideFlags: 0
@@ -197,7 +182,6 @@ GameObject:
   - component: {fileID: 361758068}
   - component: {fileID: 361758067}
   - component: {fileID: 361758069}
-  - component: {fileID: 361758070}
   - component: {fileID: 361758071}
   m_Layer: 0
   m_Name: ServerGameManager
@@ -250,21 +234,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PlayerPrefab: {fileID: 3755911574633826402, guid: e38707a726edd4bb0810560d093dcb4f, type: 3}
---- !u!114 &361758070
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 361758066}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e7a7373a95a3d4641bf10ea35c9c0bad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  pooledObjects: []
-  objectToPool: {fileID: 456066915130080702, guid: cd572991b03934816b8a557681fafc6b, type: 3}
-  amountToPool: 20
 --- !u!114 &361758071
 MonoBehaviour:
   m_ObjectHideFlags: 0
