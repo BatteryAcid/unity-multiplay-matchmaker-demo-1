@@ -9,6 +9,9 @@ using UnityEngine;
 
 public class MultiplayManager : MonoBehaviour
 {
+    public delegate void StartServerDelegate();
+    public StartServerDelegate StartServerHandler;
+
     public bool QueryProtocol = false;
     public bool Matchmaking = false;
     public bool Backfill = false;
@@ -19,22 +22,28 @@ public class MultiplayManager : MonoBehaviour
     private MultiplayEventCallbacks _multiplayEventCallbacks;
     private IServerEvents _serverEvents;
     private IServerQueryHandler _serverQueryHandler;
-    private ServerGameManager _serverGameManager; // server used to communicate with client
+    //private ServerGameManager _serverGameManager; // server used to communicate with client
+
+    public void UpdatePlayerCount(int count)
+    {
+        Debug.Log("UpdatePlayerCount: " + count);
+        _serverQueryHandler.CurrentPlayers = (ushort) count;
+    }
 
     private async void StartGame()
     {
-        if (_serverGameManager == null)
+        if (StartServerHandler == null)
         {
-            // TODO: remove this check once testing is over
-            Debug.Log("server is null");
+            Debug.Log("StartServerHandler is null, did you pass the correct method into Init?");
         }
         else
         {
             Debug.Log("Starting server...");
 
-            _serverGameManager.StartServer();
+            StartServerHandler();
 
-            // this example game doesn't have anything else to setup or assets to load, inform multiplay we are ready to accept connections
+            // this example game doesn't have anything else to setup or assets to load,
+            // inform multiplay we are ready to accept connections
             await MultiplayService.Instance.ReadyServerForPlayersAsync();
         }
     }
@@ -105,15 +114,17 @@ public class MultiplayManager : MonoBehaviour
 
     // TODO: maybe the SDK calls shouldn't be here, probably should be on "Find match" click
     // TODO: this should probably be an interface where we don't care which server implementation we're using, just used to start server.
-    public async void Init(ServerGameManager server)
+    public async void Init(StartServerDelegate startServer)
     {
-        // set reference to our network server
-        _serverGameManager = server;
+        //// set reference to our network server
+        //_serverGameManager = server;
 
-        if (_serverGameManager == null)
-        {
-            Debug.Log("BADNetworkManager is null, did you forget to add it to the GameManager game object?");
-        }
+        //if (_serverGameManager == null)
+        //{
+        //    Debug.Log("BADNetworkManager is null, did you forget to add it to the GameManager game object?");
+        //}
+
+        StartServerHandler = startServer;
 
         // Moved this here above the SQP setup just to try it out
         // SDK 2
@@ -194,6 +205,16 @@ public class MultiplayManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Unready the server. This is to indicate that the server is in some condition which means it cannot accept players.
+    /// For example, after a game has ended and you need to reset the server to prepare for a new match.
+    /// </summary>
+    public async Task UnReadyServer()
+    {
+        Debug.Log("UnReadyServer");
+        await MultiplayService.Instance.UnreadyServerAsync();
+    }
+
     private void OnError(MultiplayError error)
     {
         Debug.Log("MultiplayManager OnError: " + error.Reason);
@@ -202,8 +223,5 @@ public class MultiplayManager : MonoBehaviour
     private void OnDeallocate(MultiplayDeallocation deallocation)
     {
         Debug.Log("Deallocated");
-
-        //TODO: Hack for now, just exit the application on deallocate
-        Application.Quit();
     }
 }

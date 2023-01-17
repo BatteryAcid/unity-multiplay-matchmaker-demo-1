@@ -5,30 +5,21 @@ using System;
 using System.Threading.Tasks;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Unity.Services.Matchmaker.Models;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
+using Unity.Netcode.Components;
 using System.Net;
+using UnityEngine.SceneManagement;
 
 public class ClientGameManager : MonoBehaviour, IGameManager
 {
     public IMatchmaker Matchmaker { get; private set; }
 
-    private Button _findMatchButton;
-    private MatchButtonStatusEnum _matchButtonStatus = MatchButtonStatusEnum.FindMatch;
-    private NetworkManager _networkManager;
-    private enum MatchButtonStatusEnum
-    {
-        FindMatch,
-        Searching,
-        Found,
-        HoldLastStatus
-    }
-
     // Time in seconds before the client considers a lack of server response a timeout
     private const int k_TimeoutDuration = 10;
+    private UIManager _UIManager;
 
     private async Task<MatchmakingResult> FindMatchAsync()
     {
@@ -57,8 +48,8 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         Debug.Log($"Connecting to server at {matchmakingResult.ip}:{matchmakingResult.port}");
 
         // Set the server ip and port to connect to, received from our match making result.
-        var unityTransport = _networkManager.gameObject.GetComponent<UnityTransport>();
-        unityTransport.SetConnectionData(matchmakingResult.ip, (ushort) matchmakingResult.port);
+        var unityTransport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+        unityTransport.SetConnectionData(matchmakingResult.ip, (ushort)matchmakingResult.port);
 
         ConnectClient();
     }
@@ -71,12 +62,12 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         // var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
         // _networkManager.NetworkConfig.ConnectionData = payloadBytes;
 
-        _networkManager.NetworkConfig.ClientConnectionBufferTimeout = k_TimeoutDuration;
+        NetworkManager.Singleton.NetworkConfig.ClientConnectionBufferTimeout = k_TimeoutDuration;
 
         //  If the socket connection fails, we'll hear back by getting an ReceiveLocalClientDisconnectStatus callback
         //  for ourselves and get a message telling us the reason. If the socket connection succeeds, we'll get our
         //  ReceiveLocalClientConnectStatus callback This is where game-layer failures will be reported.
-        if (_networkManager.StartClient())
+        if (NetworkManager.Singleton.StartClient())
         {
             Debug.Log("Starting Client!");
         }
@@ -87,36 +78,8 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         }
     }
 
-    // Kick off the match making service
-    public async void OnFindMatchPressed()
-    {
-        _matchButtonStatus = MatchButtonStatusEnum.Searching;
-
-        //Matchmaker = new MatchplayMatchmaker();
-        MatchmakingResult matchmakingResult = await FindMatchAsync();
-
-        // once we get the match ip and port we can connect to server
-        StartConnectionToServer(matchmakingResult);
-    }
-
     void Update()
     {
-        if (_matchButtonStatus == MatchButtonStatusEnum.Searching)
-        {
-            SetNonInteractiveFindMatchButtonStatus("Searching...");
-        }
-        if (_matchButtonStatus == MatchButtonStatusEnum.Found)
-        {
-            SetNonInteractiveFindMatchButtonStatus("Match Found!");
-        }
-    }
-
-    public void Init(string setting)
-    {
-        Debug.Log($"Init {setting}");
-
-        _networkManager = NetworkManager.Singleton;
-        _networkManager.OnClientDisconnectCallback += RemoteDisconnect;
     }
 
     private async Task SetupUnityServices()
@@ -138,14 +101,39 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         Matchmaker = new MatchplayMatchmaker();
     }
 
+    public async void FindMatch()
+    {
+        Matchmaker = new MatchplayMatchmaker();
+        MatchmakingResult matchmakingResult = await FindMatchAsync();
+
+        if (matchmakingResult.result == MatchmakerPollingResult.Success)
+        {
+            // once we get the match ip and port we can connect to server
+            StartConnectionToServer(matchmakingResult);
+        }
+        else
+        {
+            Debug.Log("Failed to find match.");
+        }
+    }
+
+    private void OnNonNetworkSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name == "MainScene")
+        {
+            // Wait until main scene is loaded to look for the UIManager, as the
+            // game starts with the Startup scene loaded, which doesn't have the UiManager.
+            _UIManager = GameObject.Find("UIManager").GetComponent<UIManager>();
+            _UIManager.Init(FindMatch);
+        }
+    }
+
     // Start is called before the first frame update
     async void Start()
     {
         Debug.Log("ClientGameManager start");
 
-        // setup the find match button 
-        _findMatchButton = GameObject.Find("FindMatch").GetComponent<Button>();
-        _findMatchButton.onClick.AddListener(OnFindMatchPressed);
+        SceneManager.sceneLoaded += OnNonNetworkSceneLoaded;
 
         if (!ApplicationController.IsLocalTesting)
         {
@@ -157,19 +145,9 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         }
     }
 
-    private void SetNonInteractiveFindMatchButtonStatus(string buttonText)
+    public void Init()
     {
-        _matchButtonStatus = MatchButtonStatusEnum.HoldLastStatus;
-        _findMatchButton.enabled = false;
-        _findMatchButton.GetComponentInChildren<TMPro.TextMeshProUGUI>().text = buttonText;
-    }
-
-    void RemoteDisconnect(ulong clientId)
-    {
-        Debug.Log($"Got Client Disconnect callback for {clientId}");
-        //if (clientId == m_NetworkManager.LocalClientId)
-        //    return;
-        //NetworkShutdown();
+        // Debug.Log("ClientGameManager Init");
     }
 
     void OnApplicationQuit()
@@ -184,10 +162,7 @@ public class ClientGameManager : MonoBehaviour, IGameManager
 
     public void Dispose()
     {
-        if (_networkManager != null)
-        {
-            _networkManager.OnClientDisconnectCallback -= RemoteDisconnect;
-        }
+
     }
 
     // TODO: move to it's own script
@@ -213,5 +188,10 @@ public class ClientGameManager : MonoBehaviour, IGameManager
     private void LocalTestingSetup()
     {
         Matchmaker = new MockMatchmaker();
+    }
+
+    private void Awake()
+    {
+        DontDestroyOnLoad(gameObject);
     }
 }

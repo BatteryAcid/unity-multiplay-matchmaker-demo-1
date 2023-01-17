@@ -5,7 +5,6 @@ using Unity.Netcode;
 using Unity.Netcode.Components;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using System.Threading.Tasks;
 
 // TODO: can this be disabled for non-local player?
@@ -27,8 +26,11 @@ public class PlayerController : NetworkBehaviour
 
     public NetworkVariable<bool> throwing = new NetworkVariable<bool>(false);
     public NetworkVariable<FixedString32Bytes> playerDesignation = new NetworkVariable<FixedString32Bytes>();
+
+    private ThirdPersonCameraController _thirdPersonCameraController;
     private bool _isPlayerDesignationSet = false;
     private bool _isPlayerControllerReady = false;
+    private bool _isGameOver = false;
     private float _disableMovementTime = 0f;
 
     private const float _minX = -9.5f, _maxX = 9.5f, _minZp1 = 5f, _maxZp1 = 10f, _minZp2 = -10f, _maxZp2 = -5f;
@@ -51,56 +53,56 @@ public class PlayerController : NetworkBehaviour
 
     private void SetupCamera()
     {
-        // find the game play camera
         Camera[] allCams = Camera.allCameras;
-        Debug.Log("AllCams: " + allCams.Length);
+        // Debug.Log("AllCams: " + allCams.Length);
+
+        // find the game play camera
         foreach (Camera camera in allCams)
         {
-            Debug.Log($"camera tag: {camera.tag}");
-
-            if (!camera.isActiveAndEnabled)
-            {
-                Debug.Log("Camera was not active and enabled, enabling...");
-                camera.enabled = true;
-            }
+            // Debug.Log($"camera tag: {camera.tag}");
 
             if (camera.tag == "GamePlayCamera")
             {
-                Debug.Log("GamePlayCamera found");
+                // Debug.Log("GamePlayCamera found");
+                if (!camera.isActiveAndEnabled)
+                {
+                    // Debug.Log("Camera was not active and enabled, enabling...");
+                    camera.enabled = true;
+                }
+
                 PlayerCamera = camera.transform;
                 break;
             }
-            else
-            {
-                // TODO: just for debuggging, set it to whatever camera is there bc it should only be one for now
-                PlayerCamera = camera.transform;
-            }
         }
 
+        // Now that we have the game play camera, set the Player data in the camera controller script
         MonoBehaviour[] monoBehaviours = PlayerCamera.GetComponents<MonoBehaviour>();
         foreach (MonoBehaviour behaviour in monoBehaviours)
         {
             if (behaviour is ThirdPersonCameraController)
             {
-                Debug.Log("monoBehaviour is ThirdPersonCameraController with designation: " + playerDesignation.Value.ToString());
-                ((ThirdPersonCameraController)behaviour).PlayerTransform = Player.transform;
-                ((ThirdPersonCameraController)behaviour).PlayerDesignation = playerDesignation.Value.ToString();
+                _thirdPersonCameraController = ((ThirdPersonCameraController)behaviour);
+                // Debug.Log("monoBehaviour is ThirdPersonCameraController with designation: " + playerDesignation.Value.ToString());
+                _thirdPersonCameraController.PlayerTransform = Player.transform;
+                _thirdPersonCameraController.PlayerDesignation = playerDesignation.Value.ToString();
                 break;
-            }
-            else
-            {
-                Debug.Log("monoBehaviour NOT ThirdPersonCameraController");
             }
         }
     }
 
-    // NOTE: only for local
-    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    // client side only
+    private void OnSceneLoaded(SceneEvent sceneEvent)
     {
-        Debug.Log("PlayerController.OnSceneLoaded: " + scene.name);
-        if (scene.name == "GamePlay")
+        Debug.Log($"OnSceneLoaded: {sceneEvent.SceneName}, event: {sceneEvent.SceneEventType}");
+        if (sceneEvent.SceneName == "GamePlay" && sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted)
         {
             SetupCamera();
+        }
+        else if (sceneEvent.SceneName == GamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.Load)
+        {
+            // Prevents the PlayerMovement function from handling player input so we don't get errors client side
+            // once the player object is despawned by server.
+            _isGameOver = true;
         }
     }
 
@@ -113,10 +115,9 @@ public class PlayerController : NetworkBehaviour
 
         if (IsLocalPlayer)
         {
-            Debug.Log("I'm a local player object");
-            Debug.Log("NetworkVariable Player id: " + playerDesignation.Value);
-
-            SceneManager.sceneLoaded += OnSceneLoaded;
+            Debug.Log("Local player object, NetworkVariable Player id: " + playerDesignation.Value);
+            NetworkManager.SceneManager.OnSceneEvent += OnSceneLoaded;
+            _isGameOver = false;
         }
         else
         {
@@ -130,10 +131,7 @@ public class PlayerController : NetworkBehaviour
 
         if (IsServer)
         {
-            // TODO: how to get player object here??
-            // I just want to setup the ball - maybe just do that after first throw...???
             _ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust);
-                
         }
     }
 
@@ -170,7 +168,7 @@ public class PlayerController : NetworkBehaviour
     //Detect collisions between the GameObjects with Colliders attached
     void OnCollisionEnter(Collision collision)
     {
-        Debug.Log(collision.gameObject.tag);
+        // Debug.Log(collision.gameObject.tag);
 
         if (IsLocalPlayer)
         {
@@ -287,21 +285,20 @@ public class PlayerController : NetworkBehaviour
         await Task.Delay(300);
     }
 
+    // This is linked to the project settings under Time > Fixed Timestamp
+    // Currently set to .02 seconds, which is 20ms
     void FixedUpdate()
     {
         if (throwing.Value == true)
         {
             _currentSpeedLimit = _movementSpeedWhileThrowing;
-        } else
+        }
+        else
         {
             _currentSpeedLimit = _maxSpeed;
         }
 
-        // This is linked to the project settings under Time > Fixed Timestamp
-        // Currently set to .02 seconds, which is 20ms
-        //TODO remove.  && Time.time > _disableMovementTime
-        //throwing.Value != true &&
-        if (IsLocalPlayer && _isPlayerControllerReady)
+        if (IsLocalPlayer && _isPlayerControllerReady && !_isGameOver)
         {
             PlayerMovement(inputHorX, inputVertY);
         }

@@ -25,9 +25,7 @@ public class ThirdPersonCameraController : MonoBehaviour
     private Transform _camTransform;
     private float _mouseX, _mouseY, _zoom;
     private bool _cursorLocked = true;
-    private bool isCamControlReady = false;
-
-    //private NetworkBehaviour _playerController;
+    private bool _isCamControlReady = false;
 
     //TODO: can we just disable this if not server
     void Start()
@@ -72,8 +70,8 @@ public class ThirdPersonCameraController : MonoBehaviour
 
     void LateUpdate()
     {
-        //if (TESTING || (_playerController.IsLocalPlayer && PlayerDesignation != ""))
-        if (TESTING || isCamControlReady)
+        // The PlayerTransform can be null when despawning player object, which would cause exceptions
+        if (_isCamControlReady && PlayerTransform != null)
         {
             CamControl();
         }
@@ -81,16 +79,16 @@ public class ThirdPersonCameraController : MonoBehaviour
 
     void Update()
     {
-        if (TESTING || isCamControlReady)
+        if (_isCamControlReady && PlayerTransform != null)
         {
             HandleInput();
         }
 
-        if (TESTING || !isCamControlReady)
+        if (!_isCamControlReady)
         {
             if (PlayerDesignation != "")
             {
-                if (TESTING || PlayerDesignation == "p1")
+                if (PlayerDesignation == "p1")
                 {
                     _mouseX = 180;
                 }
@@ -99,7 +97,7 @@ public class ThirdPersonCameraController : MonoBehaviour
                     _mouseX = 0;
                 }
 
-                isCamControlReady = true;
+                _isCamControlReady = true;
             }
         }
     }
