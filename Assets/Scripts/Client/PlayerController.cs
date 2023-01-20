@@ -6,37 +6,41 @@ using Unity.Netcode.Components;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 using System.Threading.Tasks;
+using static UnityEngine.CullingGroup;
 
 // TODO: can this be disabled for non-local player?
 public class PlayerController : NetworkBehaviour
 {
-    public Rigidbody Player;
-    // TODO: probably make private as we're no longer setting in editor.
-    public Transform PlayerCamera;
-    public GameObject referencePrefabBall;
-    public float baseBallThrust = 20.0f;
+    public NetworkVariable<bool> IsPlayerHit = new NetworkVariable<bool>(false);
+    public NetworkVariable<bool> Throwing = new NetworkVariable<bool>(false);
+    public NetworkVariable<int> NumberOfHits = new NetworkVariable<int>(0);
+    // TODO: this has owner permission (instead of just server authority) because we set it on the client when they detect they are ready.
+    // //I think this could be refactored out or combined with another like isPlayerControllerReady..
+    public NetworkVariable<bool> IsPlayerDesignationSet = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Owner, NetworkVariableWritePermission.Owner);
+    public NetworkVariable<FixedString32Bytes> PlayerDesignation = new NetworkVariable<FixedString32Bytes>();
 
-    private float _throwKeyPressedStartTime = 0f;
+    public Rigidbody Player;
+    public GameObject referencePrefabBall;
+
+    private Transform PlayerCamera;
+    private ThirdPersonCameraController _thirdPersonCameraController;
+
     private BallActionHandler _ballActionHandler;
+    private float baseBallThrust = 20.0f;
+    private float _throwKeyPressedStartTime = 0f;
 
     private float _maxSpeed = 8;
     private float _movementSpeedWhileThrowing = 0.5f;
     private float _currentSpeedLimit = 0;
     private float inputHorX, inputVertY;
-
-    public NetworkVariable<bool> throwing = new NetworkVariable<bool>(false);
-    public NetworkVariable<FixedString32Bytes> playerDesignation = new NetworkVariable<FixedString32Bytes>();
-
-    private ThirdPersonCameraController _thirdPersonCameraController;
-    private bool _isPlayerDesignationSet = false;
-    private bool _isPlayerControllerReady = false;
-    private bool _isGameOver = false;
-    private float _disableMovementTime = 0f;
-
     private const float _minX = -9.5f, _maxX = 9.5f, _minZp1 = 5f, _maxZp1 = 10f, _minZp2 = -10f, _maxZp2 = -5f;
 
-    // NOTE: the local version of this object hits OnNetworkSpawn first, then Start.
-    // https://docs-multiplayer.unity3d.com/netcode/current/basics/networkbehavior#spawning
+    private bool _isPlayerControllerReady = false;
+    private bool _isGameOver = false;
+
+    private Color _originalPlayerColor;
+    private Renderer _playerRenderer;
+
     public override void OnNetworkSpawn()
     {
         Debug.Log("PlayerController OnNetworkSpawn");
@@ -44,10 +48,7 @@ public class PlayerController : NetworkBehaviour
 
         if (IsLocalPlayer)
         {
-            Debug.Log("LocalPlayer/OnNetworkSpawn: NetworkVariable Player id: " + playerDesignation.Value);
-
-            // TODO: this doesn't seem to work here when using a custom non-main camera, it's just not ready here.
-            //SetupCamera();
+            Debug.Log("LocalPlayer/OnNetworkSpawn: PlayerDesignation: " + PlayerDesignation.Value);
         }
     }
 
@@ -84,7 +85,7 @@ public class PlayerController : NetworkBehaviour
                 _thirdPersonCameraController = ((ThirdPersonCameraController)behaviour);
                 // Debug.Log("monoBehaviour is ThirdPersonCameraController with designation: " + playerDesignation.Value.ToString());
                 _thirdPersonCameraController.PlayerTransform = Player.transform;
-                _thirdPersonCameraController.PlayerDesignation = playerDesignation.Value.ToString();
+                _thirdPersonCameraController.PlayerDesignation = PlayerDesignation.Value.ToString();
                 break;
             }
         }
@@ -96,7 +97,14 @@ public class PlayerController : NetworkBehaviour
         Debug.Log($"OnSceneLoaded: {sceneEvent.SceneName}, event: {sceneEvent.SceneEventType}");
         if (sceneEvent.SceneName == "GamePlay" && sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted)
         {
-            SetupCamera();
+            if (IsLocalPlayer)
+            {
+                SetupCamera();
+            }
+
+            // we don't have access to this until the scene loads
+            _playerRenderer = Player.GetComponent<Renderer>();
+            _originalPlayerColor = _playerRenderer.material.color;
         }
         else if (sceneEvent.SceneName == GamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.Load)
         {
@@ -108,89 +116,166 @@ public class PlayerController : NetworkBehaviour
 
     void Start()
     {
-        // NetworkManager.LocalClient.PlayerObject // to get local client player object
-        // NetworkManager.Singleton.LocalClientId You can pass this to an RPC that uses the ConnectedClients server side to retrieve the client
-
         Debug.Log("PlayerController start");
 
         if (IsLocalPlayer)
         {
-            Debug.Log("Local player object, NetworkVariable Player id: " + playerDesignation.Value);
-            NetworkManager.SceneManager.OnSceneEvent += OnSceneLoaded;
+            Debug.Log("LocalPlayer, PlayerDesignation: " + PlayerDesignation.Value);
             _isGameOver = false;
         }
-        else
+
+        if (IsClient)
         {
-            Debug.Log("I'm a server side PlayerController");
+
+            // These on change callbacks need to be watched for both local player and client representation of other player
+            NetworkManager.SceneManager.OnSceneEvent += OnSceneLoaded;
+            IsPlayerHit.OnValueChanged += OnIsPlayerHitChanged;
         }
 
         if (IsLocalPlayer)
         {
+            // TODO: remove this or cache this value if needed
             Debug.Log("NetworkObjectId: " + NetworkManager.Singleton.LocalClient.PlayerObject.NetworkObjectId);
         }
 
         if (IsServer)
         {
-            _ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust);
+            _ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust, PlayerHit);
         }
     }
-
-    //[ServerRpc]
-    //public void ReadyBallServerRpc(ServerRpcParams serverRpcParams = default)
-    //{
-    //    Debug.Log("ReadyBallServerRpc");
-    //    var clientId = serverRpcParams.Receive.SenderClientId;
-    //    Debug.Log("Clientid: " + clientId);
-    //    NetworkObject player = NetworkManager.Singleton.ConnectedClients[clientId].PlayerObject;
-    //    if (player == null)
-    //    {
-    //        Debug.Log("Player was null");
-    //    }
-    //    _ballActionHandler.ReadyBallForThrow(Player.transform.position, Player.transform.forward, Player, player);
-    //    throwing = true;
-    //}
 
     [ServerRpc]
     public void SoftReadyNextBallToThrowServerRpc()
     {
-        throwing.Value = true;
+        Throwing.Value = true;
         _ballActionHandler.SoftReadyNextBallToThrow();
     }
 
     [ServerRpc]
-    public void ThrowBallServerRpc(Vector3 cameraForwardVector, float throwKeyPressedTime)
+    public void ThrowBallServerRpc(Vector3 cameraForwardVector, float throwKeyPressedTime, ServerRpcParams serverRpcParams = default)
     {
         //Debug.Log("ThrowBallServerRpc: " + cameraForwardVector.ToString() + ", throwKeyPressedTime: " + throwKeyPressedTime);
-        _ballActionHandler.ThrowBall(cameraForwardVector, throwKeyPressedTime, Player);
-        throwing.Value = false;
+        //ulong clientId = serverRpcParams.Receive.SenderClientId;
+        _ballActionHandler.ThrowBall(cameraForwardVector, throwKeyPressedTime, Player, PlayerDesignation.Value.ToString());
+        Throwing.Value = false;
     }
 
-    //Detect collisions between the GameObjects with Colliders attached
-    void OnCollisionEnter(Collision collision)
+    // client side only
+    public void OnIsPlayerHitChanged(bool previous, bool current)
     {
-        // Debug.Log(collision.gameObject.tag);
-
-        if (IsLocalPlayer)
+        if (current)
         {
-            // show some animations or something
-            //Check for a match with the specific tag on any GameObject that collides with your GameObject
-            if (collision.gameObject.tag == "ball")
-            {
-                //If the GameObject has the same tag as specified, output this message in the console
-                Debug.Log("Ball hit you client");
-            }
+            ApplyHitColor(true);
         }
         else
         {
-            // TODO: game over or something
-            //Check for a match with the specific tag on any GameObject that collides with your GameObject
-            if (collision.gameObject.tag == "ball")
-            {
-                //If the GameObject has the same tag as specified, output this message in the console
-                Debug.Log("Ball hit you server");
-            }
+            ApplyHitColor(false);
         }
     }
+
+    // server side only
+    public async void PlayerHit(string playerHit)
+    {
+        Debug.Log("Player hit: " + playerHit);
+        // TODO refactor this and move most to game play manager
+        GamePlayManager gamePlayManager = GameObject.Find("GameManager").GetComponent<GamePlayManager>();
+
+        PlayerSessionStatus playerSesssionForHitPlayer = gamePlayManager.GetPlayerSessionStatusByDesignation(playerHit);
+
+        //Dictionary<ulong, PlayerSessionStatus> playerStatuses = gamePlayManager.GetPlayerSessionStatuses();
+        ulong clientHit = playerSesssionForHitPlayer.NetworkId;
+        //ulong clientHit = 0;
+        //foreach(KeyValuePair<ulong, PlayerSessionStatus> status in playerStatuses)
+        //{
+        //    if (status.Value.Designation == playerHit)
+        //    {
+        //        // found player that is hit
+        //        clientHit = status.Key;
+        //        break;
+        //    }
+        //}
+
+        Debug.Log("clientHit: " + clientHit);
+        int numberOfHits = playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value;
+        Debug.Log("Found the playerController hit: " + numberOfHits);
+        playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value = numberOfHits + 1;
+
+        playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = true;
+        // TODO: would this actually work? toggling like this quickly?
+        await Task.Delay(1250);
+        playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = false;
+
+        // Find the client we want to 'ready'
+        //NetworkObject playerObject = null;
+        //foreach (KeyValuePair<ulong, NetworkClient> connectedClient in NetworkManager.Singleton.ConnectedClients)
+        //{
+        //    if (connectedClient.Value.ClientId == clientHit)
+        //    {
+        //        Debug.Log("hit ConnectedClient found");
+        //        playerObject = NetworkManager.Singleton.ConnectedClients[connectedClient.Key].PlayerObject;
+
+        //        foreach (NetworkBehaviour networkBehaviour in playerObject.GetComponentsInChildren<NetworkBehaviour>())
+        //        {
+        //            // The PlayerController is a script attached to the Player Prefab.
+        //            // Only change the server side representation of PlayerController, as the network variable will sync
+        //            if (networkBehaviour is PlayerController && !networkBehaviour.IsLocalPlayer)
+        //            {
+        //                int numberOfHits = ((PlayerController)networkBehaviour).numberOfHits.Value;
+        //                Debug.Log("Found the playerController hit: " + numberOfHits);
+        //                ((PlayerController)networkBehaviour).numberOfHits.Value = numberOfHits + 1;
+        //                break;
+        //            }
+        //        }
+
+        //        break;
+        //    }
+        //}
+    }
+
+    // TODO: client RPC player hit
+
+    //Detect collisions between the GameObjects with Colliders attached
+    //void OnCollisionEnter(Collision collision)
+    //{
+    //    Debug.Log(collision.gameObject.tag);
+
+    //    if (IsLocalPlayer)
+    //    {
+    //        Debug.Log("local client id: " + NetworkManager.Singleton.LocalClientId.ToString());
+
+    //        // show some animations or something
+    //        // Check for a match with the specific tag on any GameObject that collides with your GameObject
+    //        if (collision.gameObject.tag.Contains("ball"))
+    //        {
+    //            string ballClientOwner = collision.collider.gameObject.GetComponent<BallManager>().ClientId.Value.ToString();
+    //            Debug.Log("Ball is owned by clientId: " + ballClientOwner);
+
+    //            //If the GameObject has the same tag as specified, output this message in the console
+    //            if (ballClientOwner != NetworkManager.Singleton.LocalClientId.ToString())
+    //            {
+    //                Debug.Log("Ball was NOT yours, you are hit!");
+    //            } else
+    //            {
+    //                Debug.Log("Ball was yours!");
+    //            }
+    //            //TODO show red flash when hit
+
+    //        }
+    //    }
+    //    else
+    //    {
+    //        // TODO: game over or something
+    //        //Check for a match with the specific tag on any GameObject that collides with your GameObject
+    //        if (collision.gameObject.tag.Contains("ball"))
+    //        {
+    //            string ballClientOwner = collision.collider.gameObject.GetComponent<BallManager>().ClientId.Value.ToString();
+    //            Debug.Log("Ball belonged to client: " + ballClientOwner);
+
+    //            Debug.Log("Ball hit you server");
+
+    //        }
+    //    }
+    //}
 
     // Update is called once per frame
     async void Update()
@@ -198,11 +283,11 @@ public class PlayerController : NetworkBehaviour
         if (IsLocalPlayer)
         {
             // TODO: can this be done better?
-            if (!_isPlayerDesignationSet && playerDesignation.Value != "")
+            if (!IsPlayerDesignationSet.Value && PlayerDesignation.Value != "")
             {
-                Debug.Log("Player id set: " + playerDesignation.Value);
+                Debug.Log("Player id set: " + PlayerDesignation.Value);
 
-                _isPlayerDesignationSet = true;
+                IsPlayerDesignationSet.Value = true;
             }
 
             // limit player speed
@@ -219,7 +304,7 @@ public class PlayerController : NetworkBehaviour
             {
                 _throwKeyPressedStartTime = Time.time;
                 //ReadyBallServerRpc();
-                _disableMovementTime = Time.time + .5f;
+                // _disableMovementTime = Time.time + .5f;
                 SoftReadyNextBallToThrowServerRpc();
                 //ThrowBallServerRpc(PlayerCamera.forward, 1.6f);
             }
@@ -241,7 +326,7 @@ public class PlayerController : NetworkBehaviour
                 ThrowBallServerRpc(PlayerCamera.forward, throwKeyPressedTime);
             }
 
-            if (!_isPlayerControllerReady && _isPlayerDesignationSet && PlayerCamera != null)
+            if (!_isPlayerControllerReady && IsPlayerDesignationSet.Value && PlayerCamera != null)
             {
                 // we have our player designation and camera, ready for play
                 _isPlayerControllerReady = true;
@@ -249,19 +334,19 @@ public class PlayerController : NetworkBehaviour
         }
 
         // Run on both client and server to make sure we clamp our player object
-        if (_isPlayerDesignationSet)
+        if (IsPlayerDesignationSet.Value)
         {
             // TODO: this probably could also go server side
             // TODO: don't need these checks, set to a variable once we know designation
             // clamp x and z position values to keep player in bounds of plane
-            if (playerDesignation.Value == "p1")
+            if (PlayerDesignation.Value == "player1")
             {
                 // blue
                 transform.position = new Vector3(Mathf.Clamp(transform.position.x, _minX, _maxX),
                     1,
                     Mathf.Clamp(transform.position.z, _minZp1, _maxZp1));
             }
-            else if (playerDesignation.Value == "p2")
+            else if (PlayerDesignation.Value == "player2")
             {
                 // red
                 transform.position = new Vector3(Mathf.Clamp(transform.position.x, _minX, _maxX),
@@ -269,6 +354,24 @@ public class PlayerController : NetworkBehaviour
                     Mathf.Clamp(transform.position.z, _minZp2, _maxZp2));
             }
         }
+
+
+        // TODO: move these to GamePlayManager ready function
+        //if (IsServer && _isPlayerDesignationSet.Value && gameObject.tag == "Untagged")
+        //{
+        //    Debug.Log(gameObject.tag);
+        //    Debug.Log(playerDesignation.Value.ToString());
+        //    gameObject.tag = playerDesignation.Value.ToString();
+        //    Debug.Log("Server player tagged: " + gameObject.tag);
+        //}
+
+        //if (IsLocalPlayer && _isPlayerDesignationSet.Value && gameObject.tag == "Untagged")
+        //{
+        //    Debug.Log(gameObject.tag);
+        //    Debug.Log(playerDesignation.Value.ToString());
+        //    gameObject.tag = playerDesignation.Value.ToString();
+        //    Debug.Log("Local player tagged: " + gameObject.tag);
+        //}
 
         //if (IsServer && throwing)
         //{
@@ -285,11 +388,23 @@ public class PlayerController : NetworkBehaviour
         await Task.Delay(300);
     }
 
+    private void ApplyHitColor(bool isHit)
+    {
+        if (isHit)
+        {
+            _playerRenderer.material.SetColor("_Color", Color.red);
+        }
+        else
+        {
+            _playerRenderer.material.SetColor("_Color", _originalPlayerColor);
+        }
+    }
+
     // This is linked to the project settings under Time > Fixed Timestamp
     // Currently set to .02 seconds, which is 20ms
     void FixedUpdate()
     {
-        if (throwing.Value == true)
+        if (Throwing.Value == true)
         {
             _currentSpeedLimit = _movementSpeedWhileThrowing;
         }

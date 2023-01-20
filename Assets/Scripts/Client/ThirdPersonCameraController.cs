@@ -88,11 +88,11 @@ public class ThirdPersonCameraController : MonoBehaviour
         {
             if (PlayerDesignation != "")
             {
-                if (PlayerDesignation == "p1")
+                if (PlayerDesignation == "player1")
                 {
                     _mouseX = 180;
                 }
-                else if (PlayerDesignation == "p2")
+                else if (PlayerDesignation == "player2")
                 {
                     _mouseX = 0;
                 }
@@ -136,11 +136,11 @@ public class ThirdPersonCameraController : MonoBehaviour
 
         // TODO: get these in start and set class variables - maybe even server side??
         // locks character/camera rotation to the forward 180 degree view
-        if (PlayerDesignation == "p1")
+        if (PlayerDesignation == "player1")
         {
             _mouseX = Mathf.Clamp(_mouseX, 90, 270);
         }
-        else if (PlayerDesignation == "p2")
+        else if (PlayerDesignation == "player2")
         {
             _mouseX = Mathf.Clamp(_mouseX, -90, 90);
         }

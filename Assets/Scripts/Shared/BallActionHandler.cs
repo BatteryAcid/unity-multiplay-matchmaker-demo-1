@@ -4,6 +4,7 @@ using UnityEngine;
 using Unity.Netcode;
 using Unity.VisualScripting;
 using UnityEngine.UIElements;
+using static BallManager;
 
 public class BallActionHandler
 {
@@ -17,13 +18,15 @@ public class BallActionHandler
     //private GameObject _lastBall;
 
     private NetworkObject _nextBallToThrow;
+    private BallHitPlayerDelegate _ballHitPlayerDelegate;
 
-    public BallActionHandler(GameObject referencePrefab, float baseBallThrust) //TODO Rigidbody ball,
+    public BallActionHandler(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate) //TODO Rigidbody ball,
     {
         //_playerCamera = playerCamera;
         //_ball = ball;
         _referencePrefab = referencePrefab;
         _baseBallThrust = baseBallThrust;
+        _ballHitPlayerDelegate = ballHitPlayerDelegate;
     }
 
     // TODO: finish setting up despanwer, server-side only
@@ -87,7 +90,7 @@ public class BallActionHandler
     }
 
     //public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime)
-    public void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player) //, NetworkObject ballToThrow)
+    public void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player, string playerDesignation) //, NetworkObject ballToThrow)
     {
         // Debug.Log("Throw ball was: " + _nextBallToThrow == null ? "null" : "good");
 
@@ -154,7 +157,11 @@ public class BallActionHandler
 
             //Debug.Log("Spawn before");
             //Debug.Log("pos2: " + Player.transform.position);
+            BallManager ballManager = ballToThrow.gameObject.GetComponent<BallManager>();
+            ballManager.BallHitPlayerHandler = _ballHitPlayerDelegate;
+
             ballToThrow.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
+            ballToThrow.gameObject.GetComponent<BallManager>().PlayerDesignation.Value = playerDesignation;//clientId.ToShortString(); // must happen after spawn
             ballToThrow.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
 
 

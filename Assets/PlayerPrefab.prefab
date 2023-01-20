@@ -68,7 +68,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: f680ca322f6bd4ec09951cf3a1dc2c9c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -120,6 +120,12 @@ MonoBehaviour:
   PlayerCamera: {fileID: 0}
   referencePrefabBall: {fileID: 456066915130080702, guid: cd572991b03934816b8a557681fafc6b, type: 3}
   baseBallThrust: 20
+  throwing:
+    m_InternalValue: 0
+  numberOfHits:
+    m_InternalValue: 0
+  _isPlayerDesignationSet:
+    m_InternalValue: 0
   playerDesignation:
     m_InternalValue:
       utf8LengthInBytes: 0

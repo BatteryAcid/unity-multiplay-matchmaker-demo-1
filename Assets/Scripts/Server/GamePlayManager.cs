@@ -89,8 +89,13 @@ public class GamePlayManager : MonoBehaviour
                 {
                     Debug.Log("Found the playerController, is spawned: " + networkBehaviour.IsSpawned);
 
+                    _playerSessionStatus[clientId].PlayerController = ((PlayerController) networkBehaviour);
+
                     // Update some value on the player's prefab
-                    ((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;
+                    //((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;
+                    _playerSessionStatus[clientId].PlayerController.PlayerDesignation.Value = playerDesignation;
+                    playerObject.GetComponentInChildren<Rigidbody>().tag = playerDesignation;
+                    // TODO: also tag players - maybe we don't need to use playerDesignation if tag is propigated to client, not sure.
                 }
             }
 
@@ -123,6 +128,24 @@ public class GamePlayManager : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    // TODO: not used yet... remove?
+    public PlayerSessionStatus GetPlayerSessionStatus(ulong clientId)
+    {
+        return _playerSessionStatus[clientId];
+    }
+
+    public PlayerSessionStatus GetPlayerSessionStatusByDesignation(string designation)
+    {
+        foreach (KeyValuePair<ulong, PlayerSessionStatus> playerSessionStatus in _playerSessionStatus)
+        {
+            if (playerSessionStatus.Value.Designation == designation)
+            {
+                return playerSessionStatus.Value;
+            }
+        }
+        return null;
     }
 
     public Dictionary<ulong, PlayerSessionStatus> GetPlayerSessionStatuses()

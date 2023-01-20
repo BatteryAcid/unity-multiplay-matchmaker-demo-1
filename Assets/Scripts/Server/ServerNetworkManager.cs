@@ -25,6 +25,7 @@ public class ServerNetworkManager : NetworkBehaviour
 
     // NOTE: Function set to NetworkManager.ConnectionApprovalCallback.
     // Perform any approval checks required for you game here, set initial position and rotation, and whether or not connection is approved
+    // TODO: consider moving the bulk logic to GamePlayManager
     private void ConnectionApprovalCheck(NetworkManager.ConnectionApprovalRequest request,
         NetworkManager.ConnectionApprovalResponse response)
     {
@@ -37,16 +38,16 @@ public class ServerNetworkManager : NetworkBehaviour
         // Track our player sessions.
         // First to join is player one, second to join is player two, etc...
         int playerDesignation = playerSessioStatuses.Count + 1; // because this is before we add our player, designation needs to start at 1
-        playerSessioStatuses.Add(clientId, new PlayerSessionStatus("p" + playerDesignation));
+        playerSessioStatuses.Add(clientId, new PlayerSessionStatus(clientId, "player" + playerDesignation));
 
         // NOTE: Leaving rotation as default here, as we set initial rotation in ThirdPersonCameraController
         // Debug.Log("Player for client id: " + _playerSessionStatus[clientId].Designation);
-        if (playerSessioStatuses[clientId].Designation == "p1")
+        if (playerSessioStatuses[clientId].Designation == "player1")
         {
             response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(5f, 9.5f));
             // Debug.Log($"Setting player 1 position: {response.Position}, rotation: {response.Rotation}");
         }
-        else if (playerSessioStatuses[clientId].Designation == "p2")
+        else if (playerSessioStatuses[clientId].Designation == "player2")
         {
             response.Position = new Vector3(UnityEngine.Random.Range(-9.5f, 9.5f), 1, UnityEngine.Random.Range(-9.5f, -5f));
             // Debug.Log($"Setting player 2 position: {response.Position}, rotation: {response.Rotation}");

@@ -103,7 +103,6 @@ public class ClientGameManager : MonoBehaviour, IGameManager
 
     public async void FindMatch()
     {
-        Matchmaker = new MatchplayMatchmaker();
         MatchmakingResult matchmakingResult = await FindMatchAsync();
 
         if (matchmakingResult.result == MatchmakerPollingResult.Success)
