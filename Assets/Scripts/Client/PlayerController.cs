@@ -6,7 +6,6 @@ using Unity.Netcode.Components;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 using System.Threading.Tasks;
-using static UnityEngine.CullingGroup;
 
 // TODO: can this be disabled for non-local player?
 public class PlayerController : NetworkBehaviour
@@ -22,6 +21,7 @@ public class PlayerController : NetworkBehaviour
     public Rigidbody Player;
     public GameObject referencePrefabBall;
 
+    private GamePlayManager _gamePlayManager;
     private Transform PlayerCamera;
     private ThirdPersonCameraController _thirdPersonCameraController;
 
@@ -140,7 +140,11 @@ public class PlayerController : NetworkBehaviour
 
         if (IsServer)
         {
-            _ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust, PlayerHit);
+            //_ballActionHandler = new BallActionHandler(referencePrefabBall, baseBallThrust, PlayerHit);
+            _ballActionHandler = gameObject.GetComponent<BallActionHandler>();
+            _ballActionHandler.Init(referencePrefabBall, baseBallThrust, PlayerHit);
+
+            _gamePlayManager = GameObject.Find("GameManager").GetComponent<GamePlayManager>();
         }
     }
 
@@ -148,7 +152,7 @@ public class PlayerController : NetworkBehaviour
     public void SoftReadyNextBallToThrowServerRpc()
     {
         Throwing.Value = true;
-        _ballActionHandler.SoftReadyNextBallToThrow();
+        //_ballActionHandler.SoftReadyNextBallToThrow();
     }
 
     [ServerRpc]
@@ -177,105 +181,24 @@ public class PlayerController : NetworkBehaviour
     public async void PlayerHit(string playerHit)
     {
         Debug.Log("Player hit: " + playerHit);
+
         // TODO refactor this and move most to game play manager
-        GamePlayManager gamePlayManager = GameObject.Find("GameManager").GetComponent<GamePlayManager>();
+        PlayerSessionStatus playerSesssionForHitPlayer = _gamePlayManager.GetPlayerSessionStatusByDesignation(playerHit);
 
-        PlayerSessionStatus playerSesssionForHitPlayer = gamePlayManager.GetPlayerSessionStatusByDesignation(playerHit);
-
-        //Dictionary<ulong, PlayerSessionStatus> playerStatuses = gamePlayManager.GetPlayerSessionStatuses();
         ulong clientHit = playerSesssionForHitPlayer.NetworkId;
-        //ulong clientHit = 0;
-        //foreach(KeyValuePair<ulong, PlayerSessionStatus> status in playerStatuses)
-        //{
-        //    if (status.Value.Designation == playerHit)
-        //    {
-        //        // found player that is hit
-        //        clientHit = status.Key;
-        //        break;
-        //    }
-        //}
 
         Debug.Log("clientHit: " + clientHit);
         int numberOfHits = playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value;
         Debug.Log("Found the playerController hit: " + numberOfHits);
         playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value = numberOfHits + 1;
 
+        _gamePlayManager.CheckForGameOver();
+
         playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = true;
         // TODO: would this actually work? toggling like this quickly?
         await Task.Delay(1250);
         playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = false;
-
-        // Find the client we want to 'ready'
-        //NetworkObject playerObject = null;
-        //foreach (KeyValuePair<ulong, NetworkClient> connectedClient in NetworkManager.Singleton.ConnectedClients)
-        //{
-        //    if (connectedClient.Value.ClientId == clientHit)
-        //    {
-        //        Debug.Log("hit ConnectedClient found");
-        //        playerObject = NetworkManager.Singleton.ConnectedClients[connectedClient.Key].PlayerObject;
-
-        //        foreach (NetworkBehaviour networkBehaviour in playerObject.GetComponentsInChildren<NetworkBehaviour>())
-        //        {
-        //            // The PlayerController is a script attached to the Player Prefab.
-        //            // Only change the server side representation of PlayerController, as the network variable will sync
-        //            if (networkBehaviour is PlayerController && !networkBehaviour.IsLocalPlayer)
-        //            {
-        //                int numberOfHits = ((PlayerController)networkBehaviour).numberOfHits.Value;
-        //                Debug.Log("Found the playerController hit: " + numberOfHits);
-        //                ((PlayerController)networkBehaviour).numberOfHits.Value = numberOfHits + 1;
-        //                break;
-        //            }
-        //        }
-
-        //        break;
-        //    }
-        //}
     }
-
-    // TODO: client RPC player hit
-
-    //Detect collisions between the GameObjects with Colliders attached
-    //void OnCollisionEnter(Collision collision)
-    //{
-    //    Debug.Log(collision.gameObject.tag);
-
-    //    if (IsLocalPlayer)
-    //    {
-    //        Debug.Log("local client id: " + NetworkManager.Singleton.LocalClientId.ToString());
-
-    //        // show some animations or something
-    //        // Check for a match with the specific tag on any GameObject that collides with your GameObject
-    //        if (collision.gameObject.tag.Contains("ball"))
-    //        {
-    //            string ballClientOwner = collision.collider.gameObject.GetComponent<BallManager>().ClientId.Value.ToString();
-    //            Debug.Log("Ball is owned by clientId: " + ballClientOwner);
-
-    //            //If the GameObject has the same tag as specified, output this message in the console
-    //            if (ballClientOwner != NetworkManager.Singleton.LocalClientId.ToString())
-    //            {
-    //                Debug.Log("Ball was NOT yours, you are hit!");
-    //            } else
-    //            {
-    //                Debug.Log("Ball was yours!");
-    //            }
-    //            //TODO show red flash when hit
-
-    //        }
-    //    }
-    //    else
-    //    {
-    //        // TODO: game over or something
-    //        //Check for a match with the specific tag on any GameObject that collides with your GameObject
-    //        if (collision.gameObject.tag.Contains("ball"))
-    //        {
-    //            string ballClientOwner = collision.collider.gameObject.GetComponent<BallManager>().ClientId.Value.ToString();
-    //            Debug.Log("Ball belonged to client: " + ballClientOwner);
-
-    //            Debug.Log("Ball hit you server");
-
-    //        }
-    //    }
-    //}
 
     // Update is called once per frame
     async void Update()

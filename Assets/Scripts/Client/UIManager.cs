@@ -4,6 +4,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
+// TODO: rename to main menu manager
 public class UIManager : MonoBehaviour
 {
     public delegate void OnFindMatchPressedDelegate();

@@ -11,34 +11,87 @@ public class GamePlayManager : MonoBehaviour
     public const string MAIN_SCENE = "MainScene";
     public const string GAME_PLAY_SCENE = "GamePlay";
     public const string GAME_OVER_SCENE = "GameOver";
+    public const int MAX_HITS_GAME_OVER = 5;
+
     private static int MinPlayersPerSession = 2;
     private Dictionary<ulong, PlayerSessionStatus> _playerSessionStatus;
-    
-    //public void LoadGamePlayScene(NetworkSceneManager sceneManager)
-    //{
-    //    var status = sceneManager.LoadScene(GAME_PLAY_SCENE, LoadSceneMode.Single);
-    //    if (status != SceneEventProgressStatus.Started)
-    //    {
-    //        Debug.LogWarning($"Failed to load GamePlay with a {nameof(SceneEventProgressStatus)}: {status}");
-    //    }
-    //    else
-    //    {
-    //        Debug.Log("GamePlay scene started.");
-    //    }
-    //}
 
-    //public void LoadMainScene(NetworkSceneManager sceneManager)
-    //{
-    //    var status = sceneManager.LoadScene(MAIN_SCENE, LoadSceneMode.Single);
-    //    if (status != SceneEventProgressStatus.Started)
-    //    {
-    //        Debug.LogWarning($"Failed to load Main Scene with a {nameof(SceneEventProgressStatus)}: {status}");
-    //    }
-    //    else
-    //    {
-    //        Debug.Log("Main Scene scene started.");
-    //    }
-    //}
+    public void CheckForGameOver()
+    {
+        Dictionary<ulong, PlayerSessionStatus> playerStatuses = GetPlayerSessionStatuses();
+
+        ulong winner = 0;
+        ulong loser = 0;
+
+        foreach (KeyValuePair<ulong, PlayerSessionStatus> playerStatus in playerStatuses)
+        {
+            if (loser != 0)
+            {
+                winner = playerStatus.Value.NetworkId;
+                playerStatus.Value.GameOverOutcome = "You Won!";
+                break;
+            }
+
+            // TODO: this feels icky
+            if (playerStatus.Value.PlayerController.NumberOfHits.Value >= MAX_HITS_GAME_OVER)
+            {
+                // this player lost
+                Debug.Log("Player " + playerStatus.Value.Designation + " was hit max times and lost, ending game...");
+
+                // In the case where both have max hits, the first checked loses.  Could update to do it differently.
+                loser = playerStatus.Value.NetworkId;
+                playerStatus.Value.GameOverOutcome = "You Lost!";
+            }
+            else
+            {
+                // temp store incase we have a winner
+                winner = playerStatus.Value.NetworkId;
+            }
+        }
+
+        if (winner != 0 && loser != 0)
+        {
+            // game is over
+            Debug.Log($"Winner: {winner} Loser: {loser}.");
+            EndGameAfterWinner(winner, loser);
+        } else
+        {
+            Debug.Log("No winner found.");
+        }
+    }
+
+    private void EndGameAfterWinner(ulong winnerNetworkId, ulong loserNetworkId)
+    {
+        Debug.Log("EndGameAfterWinner");
+        // TODO: mention that these big "finds" can be avoided for the most part if using a DI framework
+        GameStateManager gameStateManager = GameObject.Find("GameStateManager").GetComponent<GameStateManager>();
+
+        // notifiy winner client
+        ClientRpcParams winnerClientRpcParams = new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[] { winnerNetworkId }
+            }
+        };
+        Debug.Log("Sending client rpc to winner: " + winnerNetworkId);
+        gameStateManager.SetIsWinnerClientRpc(true, winnerClientRpcParams);
+
+        // notifiy loser client
+        ClientRpcParams loserClientRpcParams = new ClientRpcParams
+        {
+            Send = new ClientRpcSendParams
+            {
+                TargetClientIds = new ulong[] { loserNetworkId }
+            }
+        };
+        Debug.Log("Sending client rpc to loser: " + loserNetworkId);
+        gameStateManager.SetIsWinnerClientRpc(false, loserClientRpcParams);
+
+        ServerNetworkManager serverNetworkManager = GameObject.Find("GameManager").GetComponent<ServerNetworkManager>();
+        Debug.Log("Calling serverNetworkManager.EndGame().");
+        serverNetworkManager.EndGame();
+    }
 
     public void LoadSingleModeScene(NetworkSceneManager sceneManager, string sceneName)
     {
@@ -89,7 +142,7 @@ public class GamePlayManager : MonoBehaviour
                 {
                     Debug.Log("Found the playerController, is spawned: " + networkBehaviour.IsSpawned);
 
-                    _playerSessionStatus[clientId].PlayerController = ((PlayerController) networkBehaviour);
+                    _playerSessionStatus[clientId].PlayerController = ((PlayerController)networkBehaviour);
 
                     // Update some value on the player's prefab
                     //((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;

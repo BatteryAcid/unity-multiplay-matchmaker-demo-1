@@ -81,16 +81,6 @@ public class NetworkObjectPool : NetworkBehaviour
     }
 
     /// <summary>
-    /// Return an object to the pool (reset objects before returning).
-    /// </summary>
-    public void ReturnNetworkObject(NetworkObject networkObject, GameObject prefab)
-    {
-        var go = networkObject.gameObject;
-        go.SetActive(false);
-        pooledObjects[prefab].Enqueue(networkObject);
-    }
-
-    /// <summary>
     /// Adds a prefab to the list of spawnable prefabs.
     /// </summary>
     /// <param name="prefab">The prefab to add.</param>
@@ -145,11 +135,63 @@ public class NetworkObjectPool : NetworkBehaviour
             Debug.Log("GetNetworkObjectInternal prefab was null");
         }
 
-        // Debug.Log("pooledObjects length: " + pooledObjects.Count);
+        Queue<NetworkObject> queue = pooledObjects[prefab];
+        //Debug.Log("GetObject queue count: " + queue.Count);
 
-        var queue = pooledObjects[prefab];
+        //foreach (NetworkObject queueNetworkObj in queue)
+        //{
+        //    if (queue.TryPeek(out networkObject) && !networkObject.IsSpawned)
+        //    {
+        //        //if (!networkObject.IsSpawned)
+        //        //{
+        //        networkObject = queue.Dequeue();
+        //        isDequeueSuccess = true;
+        //        Debug.Log("Dequeuing: " + networkObject.NetworkObjectId);
+        //        break;
+        //        //}
+        //    }
+        //}
+
+        //NetworkObject networkObject = new NetworkObject();
+        //bool isDequeueSuccess = false;
+        //if (queue.Count > 0)
+        //{
+        //    for (int x = 0; x < queue.Count; x++)
+        //    {
+        //        // TODO: use peek
+        //        //networkObject = queue.Dequeue();
+        //        //if (!networkObject.IsSpawned)
+        //        //{
+        //        //    isDequeueSuccess = true;
+        //        //    break;
+        //        //} else
+        //        //{
+        //        //    Debug.Log("Already spawned: " + networkObject.NetworkObjectId);
+        //        //}
+
+
+        //        if (queue.TryPeek(out networkObject) && !networkObject.IsSpawned)
+        //        {
+        //            //if (!networkObject.IsSpawned)
+        //            //{
+        //            networkObject = queue.Dequeue();
+        //            isDequeueSuccess = true;
+        //            Debug.Log("Dequeuing: " + networkObject.NetworkObjectId);
+        //            break;
+        //            //}
+        //        }
+        //    }
+
+        //}
+
+
+        //if (!isDequeueSuccess)
+        //{
+        //    networkObject = CreateInstance(prefab).GetComponent<NetworkObject>();
+        //}
 
         NetworkObject networkObject;
+
         if (queue.Count > 0)
         {
             networkObject = queue.Dequeue();
@@ -162,11 +204,35 @@ public class NetworkObjectPool : NetworkBehaviour
         // Here we must reverse the logic in ReturnNetworkObject.
         var go = networkObject.gameObject;
         go.SetActive(true);
-
+        //Debug.Log("IsSpawned: " + networkObject.IsSpawned);
         go.transform.position = position;
         go.transform.rotation = rotation;
 
         return networkObject;
+    }
+
+    /// <summary>
+    /// Return an object to the pool (reset objects before returning).
+    /// </summary>
+    public void ReturnNetworkObject(NetworkObject networkObject, GameObject prefab)
+    {
+        var go = networkObject.gameObject;
+        go.SetActive(false);
+        Debug.Log("Returning NetworkObjectId: " + networkObject.NetworkObjectId);
+        //if (networkObject.IsSpawned)
+        //{
+        //    networkObject.Despawn();
+        //}
+        Queue<NetworkObject> queue = pooledObjects[prefab];
+        queue.Enqueue(networkObject);
+        //Debug.Log("Queue count: " + queue.Count);
+
+        string asdf = "";
+        foreach (NetworkObject networkObject1 in queue)
+        {
+            asdf += networkObject1.NetworkObjectId + ", ";
+        }
+        Debug.Log(asdf);
     }
 
     /// <summary>
@@ -179,6 +245,7 @@ public class NetworkObjectPool : NetworkBehaviour
         {
             RegisterPrefabInternal(configObject.Prefab, configObject.PrewarmCount);
         }
+        Debug.Log("Prewarm complete ****");
         m_HasInitialized = true;
     }
 

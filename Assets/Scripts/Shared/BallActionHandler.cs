@@ -5,8 +5,9 @@ using Unity.Netcode;
 using Unity.VisualScripting;
 using UnityEngine.UIElements;
 using static BallManager;
+using System.Threading.Tasks;
 
-public class BallActionHandler
+public class BallActionHandler : MonoBehaviour
 {
     private GameObject _referencePrefab;
     //private Transform _playerCamera;
@@ -20,7 +21,8 @@ public class BallActionHandler
     private NetworkObject _nextBallToThrow;
     private BallHitPlayerDelegate _ballHitPlayerDelegate;
 
-    public BallActionHandler(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate) //TODO Rigidbody ball,
+    //public BallActionHandler(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate) //TODO Rigidbody ball,
+    public void Init(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate)
     {
         //_playerCamera = playerCamera;
         //_ball = ball;
@@ -32,11 +34,11 @@ public class BallActionHandler
     // TODO: finish setting up despanwer, server-side only
     private IEnumerator DespawnTimer(NetworkObject objectToDespawn)
     {
-        yield return new WaitForSeconds(10);
-        Debug.Log("ReturnNetworkObject...");
+        yield return new WaitForSeconds(3);
+        //Debug.Log("ReturnNetworkObject...");
+        //objectToDespawn.Despawn();
         NetworkObjectPool.Singleton.ReturnNetworkObject(objectToDespawn, _referencePrefab);
-        Debug.Log("Object returned to pool");
-        // TODO: may have to call .despawn() here...
+        //Debug.Log("Object returned to pool");
         yield break;
     }
 
@@ -89,62 +91,31 @@ public class BallActionHandler
         _nextBallToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);//BallPool.SharedInstance.GetPooledObject();
     }
 
-    //public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime)
-    public void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player, string playerDesignation) //, NetworkObject ballToThrow)
+    private async Task WaitThenDespawn(NetworkObject objectToDespawn)
     {
-        // Debug.Log("Throw ball was: " + _nextBallToThrow == null ? "null" : "good");
-
-        //if (_nextBallToThrow != null && Time.time > _nextThrowTime)
-        //{
-        //    Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
-
-        //    //Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
-
-        //    NetworkObject throwingBall = _nextBallToThrow;
-
-        //    //BallManager ballManager = throwingBall.GetComponent<BallManager>();
-        //    //ballManager.IsThrown = true;
-        //    //Debug.Log("ballManager.IsThrown: " + ballManager.IsThrown);
-
-        //    //throwingBall.transform.position = spawnPos;
-        //    //throwingBall.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
-
-        //    Vector3 throwVector = DetermineVectorOfThrow(cameraForwardVector);
-        //    Debug.Log("Throw vector: " + throwVector);
-
-        //    Vector3 throwWithThrust = throwVector * DetermineThrustOfBall(throwKeyPressedTime);
-        //    Debug.Log("throwWithThrust: " + throwWithThrust);
-
-        //    //Debug.Log("name: " + ballToThrow.name);
-        //    //ballToThrow.gameObject.SetActive(true); // TODO: probably not needed as the GetNetworkObject call does this.
-
-        //    Debug.Log("Spawn before");
-
-        //    //throwingBall.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
-        //    throwingBall.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
-        //    throwingBall.Spawn(true);
-
-
-        //    // TODO: does this work?
-        //    // TODO: no because this isn't a monoBehaviour... need to refactor this class maybe...
-        //    //DespawnTimer(ballToThrow);
-
-        //    //_lastBall = ballToThrow;
-        //    _nextThrowTime = Time.time + _minThrowRate;
-
-        //    _nextBallToThrow = null;
-        //}
-
-        //NetworkObject ballToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);//BallPool.SharedInstance.GetPooledObject();
-
-        NetworkObject ballToThrow = _nextBallToThrow;
-
-        if (ballToThrow != null && Time.time > _nextThrowTime)
+        await Task.Delay(2250);
+        NetworkObjectPool.Singleton.ReturnNetworkObject(objectToDespawn, _referencePrefab);
+        if (objectToDespawn.IsSpawned)
         {
+            objectToDespawn.Despawn(false);
+        }
+    }
+
+    //public void ThrowBall(Vector3 playerPosition, Vector3 playerForward, Vector3 cameraForwardVector, float throwKeyPressedTime)
+    public async void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player, string playerDesignation) //, NetworkObject ballToThrow)
+    {
+        // Don't dequeue the ball unless the cooldown nextThrowTime has passed
+        if (Time.time > _nextThrowTime)
+        {
+            Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(Player.transform.position, Player.transform.forward);
+            NetworkObject ballToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab, spawnPos, Quaternion.identity);//_nextBallToThrow;
+
+            //if (ballToThrow != null)
+            //{
             // Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
 
             //Debug.Log("pos1: " + Player.transform.position);
-            Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(Player.transform.position, Player.transform.forward);//GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
+            //Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(Player.transform.position, Player.transform.forward);//GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
 
             ballToThrow.transform.position = spawnPos;
             //ballToThrow.GetComponent<Rigidbody>().velocity = new Vector3(0, 0, 0);
@@ -160,42 +131,22 @@ public class BallActionHandler
             BallManager ballManager = ballToThrow.gameObject.GetComponent<BallManager>();
             ballManager.BallHitPlayerHandler = _ballHitPlayerDelegate;
 
-            ballToThrow.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
+            //ballToThrow.Spawn(true); // Spawn here works, but it makes for weird gameplay, like it sticks above then goes, i want a more fluid motion.
+            if (!ballToThrow.IsSpawned)
+            {
+                ballToThrow.Spawn(true);
+            }
+
             ballToThrow.gameObject.GetComponent<BallManager>().PlayerDesignation.Value = playerDesignation;//clientId.ToShortString(); // must happen after spawn
             ballToThrow.gameObject.GetComponent<Rigidbody>().AddForce(throwWithThrust, ForceMode.Impulse);
 
-
-            // TODO: does this work?
-            // TODO: no because this isn't a monoBehaviour... need to refactor this class maybe...
-            //DespawnTimer(ballToThrow);
-
             //_lastBall = ballToThrow;
             _nextThrowTime = Time.time + _minThrowRate;
+
+            //StartCoroutine(DespawnTimer(ballToThrow));
+            await WaitThenDespawn(ballToThrow);
+            //}
         }
-
-        //if (_ball != null && Time.time > _nextThrowTime)
-        //{
-        //    Debug.Log("Throwing ball with cameraForwardVector: " + cameraForwardVector.ToString());
-        //    //Debug.Log("Throwing ball with playerForward: " + playerForward.ToString());
-
-        //    Vector3 spawnPos = GetSpawnPointInFrontOfPlayer(playerPosition, playerForward);
-
-        //    //_ball.gameObject.SetActive(false);
-        //    _ball.position = spawnPos;
-        //    _ball.velocity = new Vector3(0, 0, 0);
-
-        //    Vector3 throwVector = DetermineVectorOfThrow(cameraForwardVector);
-        //    //Vector3 throwVector = DetermineVectorOfThrow(playerForward);
-        //    Debug.Log("Throw vector: " + throwVector);
-
-        //    Vector3 throwWithThrust = throwVector * DetermineThrustOfBall(throwKeyPressedTime);
-        //    Debug.Log("throwWithThrust: " + throwWithThrust);
-
-        //    //_ball.gameObject.SetActive(true);
-        //    _ball.AddForce(throwWithThrust, ForceMode.Impulse);
-        //    _nextThrowTime = Time.time + _minThrowRate;
-        //    //_ball.AddForce(DetermineVectorOfThrow() * DetermineThrustOfBall(throwKeyPressedTime), ForceMode.Impulse);
-        //}
     }
 
     // TODO: rename this ball spawn point at player

@@ -173,62 +173,50 @@ public class ServerNetworkManager : NetworkBehaviour
         Application.Quit();
     }
 
+    private void EndGameAfterDisconnect()
+    {
+        Debug.Log("Ending game after disconnect.");
+        EndGame();
+    }
+
     // For the sake of simplicity for this demo, if any player disconnects, just end the game. 
     // That means if only one player joins, then disconnects, the game session ends.
     // Your game may remain open to receiving new players, without ending the game session, up to you.
-    private void EndGameAfterDisconnect()
+    public void EndGame()
     {
-        Debug.Log("Ending game after disconnect");
+        Debug.Log("Ending game...");
 
         // change scene while network manager is still active
         if (_networkManager.SceneManager != null)
         {
             // We still get to perform the server cleanup afterwards as this script is not destroyed on scene change.
             _gamePlayManager.LoadSingleModeScene(_networkManager.SceneManager, GamePlayManager.GAME_OVER_SCENE);
-            //_gamePlayManager.LoadMainScene(_networkManager.SceneManager);
 
-            // TODO: is this still necessary if disconnecting from using UnReadyServer already happens?
-            // Investigate
+            // TODO: is this still necessary if disconnecting from using UnReadyServer already happens? No, they all get removed
             //DespawnRemainingPlayerObjects();
         }
         else
         {
             Debug.Log("SceneManager was null");
         }
-
-        //// could be null if local testing
-        //if (_multiplayManager != null)
-        //{
-        //    // According to docs this should also disconnect remaining clients.
-        //    // https://docs.unity.com/game-server-hosting/sdk/game-server-sdk-for-unity.html#Unready_the_game_server
-        //    await _multiplayManager.UnReadyServer();
-        //}
-
-        //// this may be null if local testing
-        //if (OnDisconnectHandler != null)
-        //{
-        //    OnDisconnectHandler();
-        //}
-
-        //Dispose();
     }
 
-    private void DespawnRemainingPlayerObjects()
-    {
-        foreach (KeyValuePair<ulong, NetworkClient> connectedClient in NetworkManager.Singleton.ConnectedClients)
-        {
-            Debug.Log("Despawning player with connectedClient clientid: " + connectedClient.Value.ClientId);
+    //private void DespawnRemainingPlayerObjects()
+    //{
+    //    foreach (KeyValuePair<ulong, NetworkClient> connectedClient in NetworkManager.Singleton.ConnectedClients)
+    //    {
+    //        Debug.Log("Despawning player with connectedClient clientid: " + connectedClient.Value.ClientId);
 
-            try
-            {
-                NetworkManager.Singleton.ConnectedClients[connectedClient.Key].PlayerObject.Despawn();
-            }
-            catch (Exception e)
-            {
-                Debug.Log("Error while trying to despawn connected clients, maybe they already despawned. " + e.Message);
-            }
-        }
-    }
+    //        try
+    //        {
+    //            NetworkManager.Singleton.ConnectedClients[connectedClient.Key].PlayerObject.Despawn();
+    //        }
+    //        catch (Exception e)
+    //        {
+    //            Debug.Log("Error while trying to despawn connected clients, maybe they already despawned. " + e.Message);
+    //        }
+    //    }
+    //}
 
     public void Dispose()
     {

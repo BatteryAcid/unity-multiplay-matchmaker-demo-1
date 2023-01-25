@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 4833398661270923969}
   - component: {fileID: 121332934484884789}
   - component: {fileID: 6670189456594608042}
+  - component: {fileID: 1643092595017666551}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -116,17 +117,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23f01ed08b39b46459aa28027536a2d7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Player: {fileID: 4833398661270923969}
-  PlayerCamera: {fileID: 0}
-  referencePrefabBall: {fileID: 456066915130080702, guid: cd572991b03934816b8a557681fafc6b, type: 3}
-  baseBallThrust: 20
-  throwing:
+  IsPlayerHit:
     m_InternalValue: 0
-  numberOfHits:
+  Throwing:
     m_InternalValue: 0
-  _isPlayerDesignationSet:
+  NumberOfHits:
     m_InternalValue: 0
-  playerDesignation:
+  IsPlayerDesignationSet:
+    m_InternalValue: 0
+  PlayerDesignation:
     m_InternalValue:
       utf8LengthInBytes: 0
       bytes:
@@ -161,6 +160,8 @@ MonoBehaviour:
         byte0027: 0
         byte0028: 0
         byte0029: 0
+  Player: {fileID: 4833398661270923969}
+  referencePrefabBall: {fileID: 456066915130080702, guid: cd572991b03934816b8a557681fafc6b, type: 3}
 --- !u!54 &4833398661270923969
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -213,6 +214,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f6c0be61502bb534f922ebb746851216, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1643092595017666551
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 151133893971814241}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e5c5095ddb40f4e6da9c6cd8df9988c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1 &2614608319096086587
