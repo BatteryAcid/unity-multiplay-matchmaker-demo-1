@@ -2,10 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Unity.Netcode;
 using UnityEngine;
+using Unity.Netcode;
 using UnityEngine.Assertions;
 
+// Script based on Unity's example:
+// https://docs-multiplayer.unity3d.com/netcode/current/advanced-topics/object-pooling/index.html
 public class NetworkObjectPool : NetworkBehaviour
 {
     private static NetworkObjectPool _instance;
@@ -20,30 +22,6 @@ public class NetworkObjectPool : NetworkBehaviour
     Dictionary<GameObject, Queue<NetworkObject>> pooledObjects = new Dictionary<GameObject, Queue<NetworkObject>>();
 
     private bool m_HasInitialized = false;
-
-    public void Awake()
-    {
-        if (_instance != null && _instance != this)
-        {
-            Destroy(this.gameObject);
-        }
-        else
-        {
-            _instance = this;
-        }
-    }
-
-    public override void OnNetworkSpawn()
-    {
-        // TODO:
-        // NOTE: for this example, don't do this here.  We haven't changed to the game play scene OnNetworkSpawn yet, so let the ServerGameManager manually call init.
-        //InitializePool();
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        ClearPool();
-    }
 
     // Validates the pooled prefabs list in the Editor
     public void OnValidate()
@@ -130,65 +108,7 @@ public class NetworkObjectPool : NetworkBehaviour
     /// <returns></returns>
     private NetworkObject GetNetworkObjectInternal(GameObject prefab, Vector3 position, Quaternion rotation)
     {
-        if (prefab == null)
-        {
-            Debug.Log("GetNetworkObjectInternal prefab was null");
-        }
-
         Queue<NetworkObject> queue = pooledObjects[prefab];
-        //Debug.Log("GetObject queue count: " + queue.Count);
-
-        //foreach (NetworkObject queueNetworkObj in queue)
-        //{
-        //    if (queue.TryPeek(out networkObject) && !networkObject.IsSpawned)
-        //    {
-        //        //if (!networkObject.IsSpawned)
-        //        //{
-        //        networkObject = queue.Dequeue();
-        //        isDequeueSuccess = true;
-        //        Debug.Log("Dequeuing: " + networkObject.NetworkObjectId);
-        //        break;
-        //        //}
-        //    }
-        //}
-
-        //NetworkObject networkObject = new NetworkObject();
-        //bool isDequeueSuccess = false;
-        //if (queue.Count > 0)
-        //{
-        //    for (int x = 0; x < queue.Count; x++)
-        //    {
-        //        // TODO: use peek
-        //        //networkObject = queue.Dequeue();
-        //        //if (!networkObject.IsSpawned)
-        //        //{
-        //        //    isDequeueSuccess = true;
-        //        //    break;
-        //        //} else
-        //        //{
-        //        //    Debug.Log("Already spawned: " + networkObject.NetworkObjectId);
-        //        //}
-
-
-        //        if (queue.TryPeek(out networkObject) && !networkObject.IsSpawned)
-        //        {
-        //            //if (!networkObject.IsSpawned)
-        //            //{
-        //            networkObject = queue.Dequeue();
-        //            isDequeueSuccess = true;
-        //            Debug.Log("Dequeuing: " + networkObject.NetworkObjectId);
-        //            break;
-        //            //}
-        //        }
-        //    }
-
-        //}
-
-
-        //if (!isDequeueSuccess)
-        //{
-        //    networkObject = CreateInstance(prefab).GetComponent<NetworkObject>();
-        //}
 
         NetworkObject networkObject;
 
@@ -204,7 +124,7 @@ public class NetworkObjectPool : NetworkBehaviour
         // Here we must reverse the logic in ReturnNetworkObject.
         var go = networkObject.gameObject;
         go.SetActive(true);
-        //Debug.Log("IsSpawned: " + networkObject.IsSpawned);
+
         go.transform.position = position;
         go.transform.rotation = rotation;
 
@@ -216,23 +136,24 @@ public class NetworkObjectPool : NetworkBehaviour
     /// </summary>
     public void ReturnNetworkObject(NetworkObject networkObject, GameObject prefab)
     {
-        var go = networkObject.gameObject;
-        go.SetActive(false);
-        Debug.Log("Returning NetworkObjectId: " + networkObject.NetworkObjectId);
-        //if (networkObject.IsSpawned)
-        //{
-        //    networkObject.Despawn();
-        //}
-        Queue<NetworkObject> queue = pooledObjects[prefab];
-        queue.Enqueue(networkObject);
-        //Debug.Log("Queue count: " + queue.Count);
-
-        string asdf = "";
-        foreach (NetworkObject networkObject1 in queue)
+        if (networkObject != null) // case where game ends while this timer was still active
         {
-            asdf += networkObject1.NetworkObjectId + ", ";
+            var go = networkObject.gameObject;
+            go.SetActive(false);
+            // Debug.Log("Returning NetworkObjectId: " + networkObject.NetworkObjectId);
+
+            Queue<NetworkObject> queue = pooledObjects[prefab];
+            queue.Enqueue(networkObject);
+
+            // Debugging what the queue looks like
+            // Debug.Log("Queue count: " + queue.Count);
+            // string objectsInQueue = "";
+            // foreach (NetworkObject networkObject1 in queue)
+            // {
+            //     objectsInQueue += networkObject1.NetworkObjectId + ", ";
+            // }
+            // Debug.Log(objectsInQueue);
         }
-        Debug.Log(asdf);
     }
 
     /// <summary>
@@ -245,7 +166,6 @@ public class NetworkObjectPool : NetworkBehaviour
         {
             RegisterPrefabInternal(configObject.Prefab, configObject.PrewarmCount);
         }
-        Debug.Log("Prewarm complete ****");
         m_HasInitialized = true;
     }
 
@@ -260,6 +180,31 @@ public class NetworkObjectPool : NetworkBehaviour
             NetworkManager.Singleton.PrefabHandler.RemoveHandler(prefab);
         }
         pooledObjects.Clear();
+    }
+
+    public void Awake()
+    {
+        if (_instance != null && _instance != this)
+        {
+            Destroy(this.gameObject);
+        }
+        else
+        {
+            _instance = this;
+        }
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        // NOTE: for this demo, don't call InitializePool here.  We haven't changed
+        // to the game play scene when OnNetworkSpawn is called, so let the ServerGameManager
+        // manually call init.
+        // InitializePool();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        ClearPool();
     }
 }
 

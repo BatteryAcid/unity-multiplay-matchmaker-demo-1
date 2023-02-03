@@ -13,19 +13,13 @@ public class ServerNetworkManager : NetworkBehaviour
     public OnConnectDelegate OnConnectHandler;
 
     private NetworkManager _networkManager;
-    private GamePlayManager _gamePlayManager; // TODO: change to interface
-    private MultiplayManager _multiplayManager;
+    private ServerGamePlayManager _serverGamePlayManager;
+    private ServerMultiplayManager _serverMultiplayManager;
 
     private bool _endingGame = false;
 
-    //public delegate void OnDisconnectDelegate();
-    //public OnDisconnectDelegate OnDisconnectHandler;
-
-    //private Dictionary<ulong, PlayerSessionStatus> _playerSessionStatus;
-
     // NOTE: Function set to NetworkManager.ConnectionApprovalCallback.
     // Perform any approval checks required for you game here, set initial position and rotation, and whether or not connection is approved
-    // TODO: consider moving the bulk logic to GamePlayManager
     private void ConnectionApprovalCheck(NetworkManager.ConnectionApprovalRequest request,
         NetworkManager.ConnectionApprovalResponse response)
     {
@@ -33,7 +27,7 @@ public class ServerNetworkManager : NetworkBehaviour
         var clientId = request.ClientNetworkId;
         Debug.Log("Approval check for clientId: " + clientId);
 
-        Dictionary<ulong, PlayerSessionStatus> playerSessioStatuses = _gamePlayManager.GetPlayerSessionStatuses();
+        Dictionary<ulong, PlayerSessionStatus> playerSessioStatuses = _serverGamePlayManager.GetPlayerSessionStatuses();
 
         // Track our player sessions.
         // First to join is player one, second to join is player two, etc...
@@ -54,27 +48,26 @@ public class ServerNetworkManager : NetworkBehaviour
         }
 
         response.CreatePlayerObject = true;
-        response.Approved = true;
+        response.Approved = true;  // assumes all connections are valid
 
         // NOTE: post-connection logic cannot go here, the client is not connected here yet.
     }
 
     private void OnClientConnected(ulong networkId)
     {
-        Debug.Log("Connection ID: " + networkId + " CONNECTED. Current player count: " + _gamePlayManager.GetPlayerSessionStatuses().Count);
+        Debug.Log("Connection ID: " + networkId + " CONNECTED. Current player count: " + _serverGamePlayManager.GetPlayerSessionStatuses().Count);
 
-        _gamePlayManager.ReadyPlayerForGamePlay(networkId);
+        _serverGamePlayManager.ReadyPlayerForGamePlay(networkId);
 
         // this may be null if local testing
         if (OnConnectHandler != null)
         {
-            OnConnectHandler(_gamePlayManager.GetPlayerSessionStatuses().Count);
+            OnConnectHandler(_serverGamePlayManager.GetPlayerSessionStatuses().Count);
         }
 
-        if (_gamePlayManager.IsMatchReadyToStart())
+        if (_serverGamePlayManager.IsMatchReadyToStart())
         {
-            _gamePlayManager.LoadSingleModeScene(_networkManager.SceneManager, GamePlayManager.GAME_PLAY_SCENE);
-            //_gamePlayManager.LoadGamePlayScene(_networkManager.SceneManager);
+            _serverGamePlayManager.LoadSingleModeScene(_networkManager.SceneManager, ServerGamePlayManager.GAME_PLAY_SCENE);
         }
     }
 
@@ -91,19 +84,18 @@ public class ServerNetworkManager : NetworkBehaviour
         _networkManager.StartServer();
     }
 
-    public void Init(GamePlayManager gamePlayManager, MultiplayManager multiplayManager, OnConnectDelegate onConnectDelegate)//, OnDisconnectDelegate onDisconnectDelegate)
+    public void Init(ServerGamePlayManager serverGamePlayManager, ServerMultiplayManager serverMultiplayManager, OnConnectDelegate onConnectDelegate)
     {
         _networkManager = NetworkManager.Singleton;
-        _gamePlayManager = gamePlayManager;
-        _multiplayManager = multiplayManager;
+        _serverGamePlayManager = serverGamePlayManager;
+        _serverMultiplayManager = serverMultiplayManager;
 
         OnConnectHandler = onConnectDelegate;
-        //OnDisconnectHandler = onDisconnectDelegate;
 
         // We add ApprovalCheck callback BEFORE OnNetworkSpawn to avoid spurious Netcode for GameObjects (Netcode)
         // warning: "No ConnectionApproval callback defined. Connection approval will timeout"
 
-        _networkManager.ConnectionApprovalCallback += ConnectionApprovalCheck; // assumes all connections are valid
+        _networkManager.ConnectionApprovalCallback += ConnectionApprovalCheck;
         _networkManager.OnServerStarted += OnNetworkReady;
         _networkManager.OnClientDisconnectCallback += OnClientDisconnect;
         _networkManager.OnClientConnectedCallback += OnClientConnected;
@@ -141,12 +133,12 @@ public class ServerNetworkManager : NetworkBehaviour
     private async void OnSceneLoaded(SceneEvent sceneEvent)
     {
         Debug.Log($"OnSceneLoaded: {sceneEvent.SceneName}, event: {sceneEvent.SceneEventType}");
-        if (sceneEvent.SceneName == GamePlayManager.GAME_PLAY_SCENE && sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted)
+        if (sceneEvent.SceneName == ServerGamePlayManager.GAME_PLAY_SCENE && sceneEvent.SceneEventType == SceneEventType.LoadEventCompleted)
         {
             Debug.Log("InitializePool");
             NetworkObjectPool.Singleton.InitializePool();
         }
-        else if (sceneEvent.SceneName == GamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.LoadComplete) //SceneEventType.LoadEventCompleted)
+        else if (sceneEvent.SceneName == ServerGamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.LoadComplete)
         {
             // NOTE: using LoadComplete here means our single remaining client has loaded the Game Over scene.
             // If you had more than 2 player game, you'd have to refactor how you determine when it's appropriate to quit the game.
@@ -160,11 +152,11 @@ public class ServerNetworkManager : NetworkBehaviour
     private async Task UnreadyAndQuitServer()
     {
         // could be null if local testing
-        if (_multiplayManager != null)
+        if (_serverMultiplayManager != null)
         {
             // According to docs this should also disconnect remaining clients.
             // https://docs.unity.com/game-server-hosting/sdk/game-server-sdk-for-unity.html#Unready_the_game_server
-            await _multiplayManager.UnReadyServer();
+            await _serverMultiplayManager.UnReadyServer();
         }
 
         // we have reached game over, quit the server-side application.
@@ -190,33 +182,13 @@ public class ServerNetworkManager : NetworkBehaviour
         if (_networkManager.SceneManager != null)
         {
             // We still get to perform the server cleanup afterwards as this script is not destroyed on scene change.
-            _gamePlayManager.LoadSingleModeScene(_networkManager.SceneManager, GamePlayManager.GAME_OVER_SCENE);
-
-            // TODO: is this still necessary if disconnecting from using UnReadyServer already happens? No, they all get removed
-            //DespawnRemainingPlayerObjects();
+            _serverGamePlayManager.LoadSingleModeScene(_networkManager.SceneManager, ServerGamePlayManager.GAME_OVER_SCENE);
         }
         else
         {
             Debug.Log("SceneManager was null");
         }
     }
-
-    //private void DespawnRemainingPlayerObjects()
-    //{
-    //    foreach (KeyValuePair<ulong, NetworkClient> connectedClient in NetworkManager.Singleton.ConnectedClients)
-    //    {
-    //        Debug.Log("Despawning player with connectedClient clientid: " + connectedClient.Value.ClientId);
-
-    //        try
-    //        {
-    //            NetworkManager.Singleton.ConnectedClients[connectedClient.Key].PlayerObject.Despawn();
-    //        }
-    //        catch (Exception e)
-    //        {
-    //            Debug.Log("Error while trying to despawn connected clients, maybe they already despawned. " + e.Message);
-    //        }
-    //    }
-    //}
 
     public void Dispose()
     {

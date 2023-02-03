@@ -8,7 +8,8 @@ using Unity.Services.Matchmaker;
 using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 
-// Class is mostly based on: https://github.com/Unity-Technologies/com.unity.services.samples.matchplay/blob/master/Assets/Scripts/Matchplay/Client/Services/MatchplayMatchmaker.cs
+// Class is mostly based on:
+// https://github.com/Unity-Technologies/com.unity.services.samples.matchplay/blob/master/Assets/Scripts/Matchplay/Client/Services/MatchplayMatchmaker.cs
 
 public enum MatchmakerPollingResult
 {
@@ -135,25 +136,15 @@ public class MatchplayMatchmaker : IMatchmaker
     /// </summary>
     static CreateTicketOptions UserDataToTicketRuleOptions(UserData data)
     {
-        // TODO: do we need to put the game version here to make sure they are all playing on the same one?
         var attributes = new Dictionary<string, object>
         {
             // You can add attributes here to match players with others with same preferences, like game mode, map, etc
             // { k_MapRuleName, data.userGamePreferences.MapRules() }
         };
 
-        // TODO: the queue name would probably be provided by some query somewhere, not sure yet, hardcoded for now
-        // my guess is that you can use the REST APIs to get queue name
-
-        // TODO: check with Unity dev team to see if there is another way
-        // You can let the player pick which type of game play they want and that could be mapped to different queues
-        // coresponding to those different match types.
-        //
         // If you wanted to use a non-standard queue, say for a special event, you could spin up a new fleet that uses
-        // a new build configuration that passes in the queue as a launch param.
-        var queueName = "bad-queue-1";
-
-        return new CreateTicketOptions(queueName, attributes);
+        // a new build configuration that passes in the queue as a launch param, that overwrites the default here.
+        return new CreateTicketOptions(ApplicationController.QueueName, attributes);
     }
 
     public async Task CancelMatchmaking()

@@ -1,13 +1,11 @@
 using System;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using UnityEngine;
 using Unity.Services.Core;
 using Unity.Services.Multiplay;
-using Unity.Services.Matchmaker.Models;
 using Unity.Netcode;
-using UnityEngine;
 
-public class MultiplayManager : MonoBehaviour
+public class ServerMultiplayManager : MonoBehaviour
 {
     public delegate void StartServerDelegate();
     public StartServerDelegate StartServerHandler;
@@ -17,12 +15,12 @@ public class MultiplayManager : MonoBehaviour
     public bool Backfill = false;
 
     private string _allocationId;
-    private int _maxPlayers = 2; // TODO: This can be hardcoded or dynamic based on your games requirements.
+    private int _maxPlayers = 2; // This can be hardcoded or dynamic based on your games requirements.
     private bool _sqpInitialized = false;
+
     private MultiplayEventCallbacks _multiplayEventCallbacks;
     private IServerEvents _serverEvents;
     private IServerQueryHandler _serverQueryHandler;
-    //private ServerGameManager _serverGameManager; // server used to communicate with client
 
     public void UpdatePlayerCount(int count)
     {
@@ -74,25 +72,25 @@ public class MultiplayManager : MonoBehaviour
 
     private async void InitializeSqp()
     {
-        Debug.Log("BAD InitializeSqp");
+        Debug.Log("InitializeSqp");
 
-        // Note: looks like this can be set with default values first, then updated if the values come in later,
-        // which should be followed by a call to UpdateServerCheck
-        // SDK 3
         try
         {
+            // You can use these values setup match parameters.
+            // Note: looks like this can be set with default values first, then updated
+            // if the values come in later, which should be followed by a call to UpdateServerCheck.
+            // maxPlayers is used to actually set the max players allowed on server.
+            // DOCS: https://docs.unity.com/game-server-hosting/en/manual/sdk/game-server-sdk-for-unity#Start_server_query_handler
+            // SDK 3
             _serverQueryHandler = await MultiplayService.Instance.StartServerQueryHandlerAsync(
-                (ushort)_maxPlayers, //(ushort)_sessionRequest.MaxPlayers,
-                "DisplayName", //_sessionRequest.DisplayName,
-                "BADGameType", //_sessionRequest.GameplayType.ToString().ToLowerInvariant(),
-                "0",//Application.version,
+                (ushort)_maxPlayers,
+                "DisplayName",
+                "BADGameType",
+                "0",
                 "BADMap");
 
-            // TODO: for testing just added one player
-            // TODO: refactor this to an actual count based on players joining
-            _serverQueryHandler.CurrentPlayers = (ushort)1;
-
-            _sqpInitialized = true; // triggers a call to UpdateServerCheck
+            // triggers an SDK call to UpdateServerCheck
+            _sqpInitialized = true;
         }
         catch (Exception e)
         {
@@ -112,26 +110,17 @@ public class MultiplayManager : MonoBehaviour
         }
     }
 
-    // TODO: maybe the SDK calls shouldn't be here, probably should be on "Find match" click
-    // TODO: this should probably be an interface where we don't care which server implementation we're using, just used to start server.
     public async void Init(StartServerDelegate startServer)
     {
-        //// set reference to our network server
-        //_serverGameManager = server;
-
-        //if (_serverGameManager == null)
-        //{
-        //    Debug.Log("BADNetworkManager is null, did you forget to add it to the GameManager game object?");
-        //}
-
         StartServerHandler = startServer;
 
-        // Moved this here above the SQP setup just to try it out
         // SDK 2
         _serverEvents = await MultiplayService.Instance.SubscribeToServerEventsAsync(_multiplayEventCallbacks);
 
-
         // It's possible this is a cold start allocation (no event will fire)
+        // I believe the source for this is from the Photon Fusion BattleRoyal example code,
+        // not entirely sure if this is necessary.
+        // https://doc.photonengine.com/en-us/fusion/current/game-samples/fusion-br/multiplay
         if (!string.IsNullOrEmpty(MultiplayService.Instance.ServerConfig.AllocationId))
         {
             Debug.Log("Looks like we have a 'cold start allocation', where no event will fire...");

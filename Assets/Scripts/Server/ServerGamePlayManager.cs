@@ -1,12 +1,9 @@
-using System.Collections;
 using System.Collections.Generic;
-using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.Networking.Types;
 using UnityEngine.SceneManagement;
+using Unity.Netcode;
 
-// TODO: rename to server gameplay..
-public class GamePlayManager : MonoBehaviour
+public class ServerGamePlayManager : MonoBehaviour
 {
     public const string MAIN_SCENE = "MainScene";
     public const string GAME_PLAY_SCENE = "GamePlay";
@@ -15,6 +12,8 @@ public class GamePlayManager : MonoBehaviour
 
     private static int MinPlayersPerSession = 2;
     private Dictionary<ulong, PlayerSessionStatus> _playerSessionStatus;
+    private GameStateManager _gameStateManager;
+    private ServerNetworkManager _serverNetworkManager;
 
     public void CheckForGameOver()
     {
@@ -32,10 +31,9 @@ public class GamePlayManager : MonoBehaviour
                 break;
             }
 
-            // TODO: this feels icky
             if (playerStatus.Value.PlayerController.NumberOfHits.Value >= MAX_HITS_GAME_OVER)
             {
-                // this player lost
+                // This player lost
                 Debug.Log("Player " + playerStatus.Value.Designation + " was hit max times and lost, ending game...");
 
                 // In the case where both have max hits, the first checked loses.  Could update to do it differently.
@@ -54,7 +52,8 @@ public class GamePlayManager : MonoBehaviour
             // game is over
             Debug.Log($"Winner: {winner} Loser: {loser}.");
             EndGameAfterWinner(winner, loser);
-        } else
+        }
+        else
         {
             Debug.Log("No winner found.");
         }
@@ -63,8 +62,6 @@ public class GamePlayManager : MonoBehaviour
     private void EndGameAfterWinner(ulong winnerNetworkId, ulong loserNetworkId)
     {
         Debug.Log("EndGameAfterWinner");
-        // TODO: mention that these big "finds" can be avoided for the most part if using a DI framework
-        GameStateManager gameStateManager = GameObject.Find("GameStateManager").GetComponent<GameStateManager>();
 
         // notifiy winner client
         ClientRpcParams winnerClientRpcParams = new ClientRpcParams
@@ -74,8 +71,9 @@ public class GamePlayManager : MonoBehaviour
                 TargetClientIds = new ulong[] { winnerNetworkId }
             }
         };
-        Debug.Log("Sending client rpc to winner: " + winnerNetworkId);
-        gameStateManager.SetIsWinnerClientRpc(true, winnerClientRpcParams);
+
+        // Debug.Log("Sending client rpc to winner: " + winnerNetworkId);
+        _gameStateManager.SetIsWinnerClientRpc(true, winnerClientRpcParams);
 
         // notifiy loser client
         ClientRpcParams loserClientRpcParams = new ClientRpcParams
@@ -85,25 +83,12 @@ public class GamePlayManager : MonoBehaviour
                 TargetClientIds = new ulong[] { loserNetworkId }
             }
         };
-        Debug.Log("Sending client rpc to loser: " + loserNetworkId);
-        gameStateManager.SetIsWinnerClientRpc(false, loserClientRpcParams);
 
-        ServerNetworkManager serverNetworkManager = GameObject.Find("GameManager").GetComponent<ServerNetworkManager>();
-        Debug.Log("Calling serverNetworkManager.EndGame().");
-        serverNetworkManager.EndGame();
-    }
+        // Debug.Log("Sending client rpc to loser: " + loserNetworkId);
+        _gameStateManager.SetIsWinnerClientRpc(false, loserClientRpcParams);
 
-    public void LoadSingleModeScene(NetworkSceneManager sceneManager, string sceneName)
-    {
-        var status = sceneManager.LoadScene(sceneName, LoadSceneMode.Single);
-        if (status != SceneEventProgressStatus.Started)
-        {
-            Debug.LogWarning($"Failed to load {sceneName} Scene with a {nameof(SceneEventProgressStatus)}: {status}");
-        }
-        else
-        {
-            Debug.Log($"{sceneName} scene started.");
-        }
+        // Debug.Log("Calling serverNetworkManager.EndGame().");
+        _serverNetworkManager.EndGame();
     }
 
     public void ReadyPlayerForGamePlay(ulong clientId)
@@ -129,26 +114,25 @@ public class GamePlayManager : MonoBehaviour
         }
 
         // Update the client's player prefab object with whatever is required for your game.
-        // Here we set the player 1/2 designation.
+        // Here we set the player(1 or 2) designation.
         if (playerObject != null)
         {
-            Debug.Log(playerObject.IsLocalPlayer);
-
             foreach (NetworkBehaviour networkBehaviour in playerObject.GetComponentsInChildren<NetworkBehaviour>())
             {
                 // The PlayerController is a script attached to the Player Prefab.
                 // Only change the server side representation of PlayerController, as the network variable will sync
                 if (networkBehaviour is PlayerController && !networkBehaviour.IsLocalPlayer)
                 {
-                    Debug.Log("Found the playerController, is spawned: " + networkBehaviour.IsSpawned);
+                    // Debug.Log("Found the playerController, is spawned: " + networkBehaviour.IsSpawned);
 
                     _playerSessionStatus[clientId].PlayerController = ((PlayerController)networkBehaviour);
 
-                    // Update some value on the player's prefab
-                    //((PlayerController)networkBehaviour).playerDesignation.Value = playerDesignation;
+                    // Assign player designation to the prefab's PlayerController
                     _playerSessionStatus[clientId].PlayerController.PlayerDesignation.Value = playerDesignation;
+
+                    // This may seem redundant to also set the player object's tag to the designation,
+                    // but it helps to determine which player the ball hits without having to find the PlayerController in the BallManager.
                     playerObject.GetComponentInChildren<Rigidbody>().tag = playerDesignation;
-                    // TODO: also tag players - maybe we don't need to use playerDesignation if tag is propigated to client, not sure.
                 }
             }
 
@@ -157,6 +141,19 @@ public class GamePlayManager : MonoBehaviour
         else
         {
             Debug.Log("player object was null");
+        }
+    }
+
+    public void LoadSingleModeScene(NetworkSceneManager sceneManager, string sceneName)
+    {
+        var status = sceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+        if (status != SceneEventProgressStatus.Started)
+        {
+            Debug.LogWarning($"Failed to load {sceneName} Scene with a {nameof(SceneEventProgressStatus)}: {status}");
+        }
+        else
+        {
+            Debug.Log($"{sceneName} scene started.");
         }
     }
 
@@ -183,12 +180,6 @@ public class GamePlayManager : MonoBehaviour
         return false;
     }
 
-    // TODO: not used yet... remove?
-    public PlayerSessionStatus GetPlayerSessionStatus(ulong clientId)
-    {
-        return _playerSessionStatus[clientId];
-    }
-
     public PlayerSessionStatus GetPlayerSessionStatusByDesignation(string designation)
     {
         foreach (KeyValuePair<ulong, PlayerSessionStatus> playerSessionStatus in _playerSessionStatus)
@@ -208,8 +199,12 @@ public class GamePlayManager : MonoBehaviour
 
     void Start()
     {
+        _gameStateManager = GameObject.Find("GameStateManager").GetComponent<GameStateManager>();
+        _serverNetworkManager = GameObject.Find("GameManager").GetComponent<ServerNetworkManager>();
+
         if (ApplicationController.IsLocalTesting)
         {
+            // Enables game to start with only one player during local testing.
             MinPlayersPerSession = 1;
         }
     }

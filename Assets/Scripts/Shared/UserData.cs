@@ -10,8 +10,8 @@ using UnityEngine;
 /// All the data we would want to pass across the network.
 ///
 /// NOTE: for this demo I'm not using userGamePreferences (from Unity's Matchplay example project)
-/// but it can be used to determine what type of match (2v2, 3v3), game type (capture the flag, free for all, etc),
-/// map, etc they wish to play.
+/// but it can be used to determine what type of match (2v2, 3v3), game type
+/// (capture the flag, free for all, etc), map, etc they wish to play.
 /// </summary>
 [Serializable]
 public class UserData

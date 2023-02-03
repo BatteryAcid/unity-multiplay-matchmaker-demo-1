@@ -17,7 +17,7 @@ public class GameOver : NetworkBehaviour
         Debug.Log("OnMainMenuPressed");
         // NOTE: Not using NetworkManager's scene management here because at this point the
         // connection is closed and your client is operating locally without server synchronization.
-        SceneManager.LoadScene(GamePlayManager.MAIN_SCENE, LoadSceneMode.Single);
+        SceneManager.LoadScene(ServerGamePlayManager.MAIN_SCENE, LoadSceneMode.Single);
     }
 
     void Start()

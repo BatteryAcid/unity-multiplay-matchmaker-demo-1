@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,11 +9,11 @@ public class ApplicationController : MonoBehaviour
     // use a command line argument or a Define Symbol to toggle deployment environment.
     public static bool IsLocalTesting = false;
 
-    // shared
     // The server or client IGameManager implementation script will be added to
     // the GameManager object in the editor and establish the respective support scripts.
-    // NOTE: this could probably be a singleton.
     private IGameManager _gameManager;
+
+    public const string QueueName = "bad-queue-1";
 
     void Start()
     {
@@ -37,6 +34,7 @@ public class ApplicationController : MonoBehaviour
             _gameManager = gameManager.AddComponent<ClientGameManager>();
         }
 
+        // Initialize our classes instead of relying on start
         _gameManager.Init();
 
         // Load main scene after startup is complete

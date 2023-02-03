@@ -21,7 +21,7 @@ public class PlayerController : NetworkBehaviour
     public Rigidbody Player;
     public GameObject referencePrefabBall;
 
-    private GamePlayManager _gamePlayManager;
+    private ServerGamePlayManager _serverGamePlayManager;
     private Transform PlayerCamera;
     private ThirdPersonCameraController _thirdPersonCameraController;
 
@@ -41,21 +41,9 @@ public class PlayerController : NetworkBehaviour
     private Color _originalPlayerColor;
     private Renderer _playerRenderer;
 
-    public override void OnNetworkSpawn()
-    {
-        Debug.Log("PlayerController OnNetworkSpawn");
-        base.OnNetworkSpawn();
-
-        if (IsLocalPlayer)
-        {
-            Debug.Log("LocalPlayer/OnNetworkSpawn: PlayerDesignation: " + PlayerDesignation.Value);
-        }
-    }
-
     private void SetupCamera()
     {
         Camera[] allCams = Camera.allCameras;
-        // Debug.Log("AllCams: " + allCams.Length);
 
         // find the game play camera
         foreach (Camera camera in allCams)
@@ -76,19 +64,10 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        // Now that we have the game play camera, set the Player data in the camera controller script
-        MonoBehaviour[] monoBehaviours = PlayerCamera.GetComponents<MonoBehaviour>();
-        foreach (MonoBehaviour behaviour in monoBehaviours)
-        {
-            if (behaviour is ThirdPersonCameraController)
-            {
-                _thirdPersonCameraController = ((ThirdPersonCameraController)behaviour);
-                // Debug.Log("monoBehaviour is ThirdPersonCameraController with designation: " + playerDesignation.Value.ToString());
-                _thirdPersonCameraController.PlayerTransform = Player.transform;
-                _thirdPersonCameraController.PlayerDesignation = PlayerDesignation.Value.ToString();
-                break;
-            }
-        }
+        // Manually add the ThirdPersonCameraController to the Camera object
+        _thirdPersonCameraController = PlayerCamera.gameObject.AddComponent<ThirdPersonCameraController>();
+        _thirdPersonCameraController.PlayerTransform = Player.transform;
+        _thirdPersonCameraController.PlayerDesignation = PlayerDesignation.Value.ToString();
     }
 
     // client side only
@@ -106,7 +85,7 @@ public class PlayerController : NetworkBehaviour
             _playerRenderer = Player.GetComponent<Renderer>();
             _originalPlayerColor = _playerRenderer.material.color;
         }
-        else if (sceneEvent.SceneName == GamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.Load)
+        else if (sceneEvent.SceneName == ServerGamePlayManager.GAME_OVER_SCENE && sceneEvent.SceneEventType == SceneEventType.Load)
         {
             // Prevents the PlayerMovement function from handling player input so we don't get errors client side
             // once the player object is despawned by server.
@@ -118,24 +97,14 @@ public class PlayerController : NetworkBehaviour
     {
         Debug.Log("PlayerController start");
 
-        if (IsLocalPlayer)
-        {
-            Debug.Log("LocalPlayer, PlayerDesignation: " + PlayerDesignation.Value);
-            _isGameOver = false;
-        }
-
         if (IsClient)
         {
+            Debug.Log("PlayerDesignation: " + PlayerDesignation.Value);
+            _isGameOver = false;
 
             // These on change callbacks need to be watched for both local player and client representation of other player
             NetworkManager.SceneManager.OnSceneEvent += OnSceneLoaded;
             IsPlayerHit.OnValueChanged += OnIsPlayerHitChanged;
-        }
-
-        if (IsLocalPlayer)
-        {
-            // TODO: remove this or cache this value if needed
-            Debug.Log("NetworkObjectId: " + NetworkManager.Singleton.LocalClient.PlayerObject.NetworkObjectId);
         }
 
         if (IsServer)
@@ -144,10 +113,11 @@ public class PlayerController : NetworkBehaviour
             _ballActionHandler = gameObject.GetComponent<BallActionHandler>();
             _ballActionHandler.Init(referencePrefabBall, baseBallThrust, PlayerHit);
 
-            _gamePlayManager = GameObject.Find("GameManager").GetComponent<GamePlayManager>();
+            _serverGamePlayManager = GameObject.Find("GameManager").GetComponent<ServerGamePlayManager>();
         }
     }
 
+    // TODO: is this needed?
     [ServerRpc]
     public void SoftReadyNextBallToThrowServerRpc()
     {
@@ -183,7 +153,7 @@ public class PlayerController : NetworkBehaviour
         Debug.Log("Player hit: " + playerHit);
 
         // TODO refactor this and move most to game play manager
-        PlayerSessionStatus playerSesssionForHitPlayer = _gamePlayManager.GetPlayerSessionStatusByDesignation(playerHit);
+        PlayerSessionStatus playerSesssionForHitPlayer = _serverGamePlayManager.GetPlayerSessionStatusByDesignation(playerHit);
 
         ulong clientHit = playerSesssionForHitPlayer.NetworkId;
 
@@ -192,10 +162,9 @@ public class PlayerController : NetworkBehaviour
         Debug.Log("Found the playerController hit: " + numberOfHits);
         playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value = numberOfHits + 1;
 
-        _gamePlayManager.CheckForGameOver();
+        _serverGamePlayManager.CheckForGameOver();
 
         playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = true;
-        // TODO: would this actually work? toggling like this quickly?
         await Task.Delay(1250);
         playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = false;
     }
@@ -226,6 +195,7 @@ public class PlayerController : NetworkBehaviour
             if (Input.GetMouseButtonDown(0))
             {
                 _throwKeyPressedStartTime = Time.time;
+                // TODO: clean up
                 //ReadyBallServerRpc();
                 // _disableMovementTime = Time.time + .5f;
                 SoftReadyNextBallToThrowServerRpc();
@@ -277,34 +247,7 @@ public class PlayerController : NetworkBehaviour
                     Mathf.Clamp(transform.position.z, _minZp2, _maxZp2));
             }
         }
-
-
-        // TODO: move these to GamePlayManager ready function
-        //if (IsServer && _isPlayerDesignationSet.Value && gameObject.tag == "Untagged")
-        //{
-        //    Debug.Log(gameObject.tag);
-        //    Debug.Log(playerDesignation.Value.ToString());
-        //    gameObject.tag = playerDesignation.Value.ToString();
-        //    Debug.Log("Server player tagged: " + gameObject.tag);
-        //}
-
-        //if (IsLocalPlayer && _isPlayerDesignationSet.Value && gameObject.tag == "Untagged")
-        //{
-        //    Debug.Log(gameObject.tag);
-        //    Debug.Log(playerDesignation.Value.ToString());
-        //    gameObject.tag = playerDesignation.Value.ToString();
-        //    Debug.Log("Local player tagged: " + gameObject.tag);
-        //}
-
-        //if (IsServer && throwing)
-        //{
-        //    _ballActionHandler.UpdateReadyBallPosition(Player.transform.position, Player.transform.forward);
-        //}
     }
-
-    //private Vector3 _lastPos = Vector3.zero;
-    //private Vector3 _distSinceLast;
-    //private float _nextDistanceSnapshotTime = 0f;
 
     private async Task WaitThenThrow()
     {
