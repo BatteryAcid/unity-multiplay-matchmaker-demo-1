@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Unity.Netcode;
@@ -14,6 +15,26 @@ public class ServerGamePlayManager : MonoBehaviour
     private Dictionary<ulong, PlayerSessionStatus> _playerSessionStatus;
     private GameStateManager _gameStateManager;
     private ServerNetworkManager _serverNetworkManager;
+
+    public async void PlayerHit(string playerHit)
+    {
+        Debug.Log("Player hit: " + playerHit);
+
+        PlayerSessionStatus playerSesssionForHitPlayer = GetPlayerSessionStatusByDesignation(playerHit);
+
+        ulong clientHit = playerSesssionForHitPlayer.NetworkId;
+
+        Debug.Log("clientHit: " + clientHit);
+        int numberOfHits = playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value;
+        Debug.Log("Found the playerController hit: " + numberOfHits);
+        playerSesssionForHitPlayer.PlayerController.NumberOfHits.Value = numberOfHits + 1;
+
+        CheckForGameOver();
+
+        playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = true;
+        await Task.Delay(1250);
+        playerSesssionForHitPlayer.PlayerController.IsPlayerHit.Value = false;
+    }
 
     public void CheckForGameOver()
     {

@@ -22,12 +22,6 @@ public class ServerMultiplayManager : MonoBehaviour
     private IServerEvents _serverEvents;
     private IServerQueryHandler _serverQueryHandler;
 
-    public void UpdatePlayerCount(int count)
-    {
-        Debug.Log("UpdatePlayerCount: " + count);
-        _serverQueryHandler.CurrentPlayers = (ushort) count;
-    }
-
     private async void StartGame()
     {
         if (StartServerHandler == null)
@@ -40,7 +34,7 @@ public class ServerMultiplayManager : MonoBehaviour
 
             StartServerHandler();
 
-            // this example game doesn't have anything else to setup or assets to load,
+            // This example game doesn't have anything else to setup or assets to load,
             // inform multiplay we are ready to accept connections
             await MultiplayService.Instance.ReadyServerForPlayersAsync();
         }
@@ -103,7 +97,11 @@ public class ServerMultiplayManager : MonoBehaviour
         // should just run once
         if (!_sqpInitialized) InitializeSqp();
 
-        // always gets called here
+        // This will constantly be called, and probably isn't the best approach.
+        // The example matchplay project was being updated during the creation of this project, so
+        // I've seen two different approahces, poll based and on value change:
+        // - https://github.com/Unity-Technologies/com.unity.services.samples.matchplay/blob/master/Assets/Scripts/Matchplay/Server/Services/MultiplayServerQueryService.cs#L86
+        // - https://github.com/Unity-Technologies/com.unity.services.samples.matchplay/blob/d1f30c65986a9cbafa8fa6b351d16133db4acc98/Assets/Scripts/Matchplay/Server/Services/MultiplayAllocationService.cs#L120
         if (_serverQueryHandler != null)
         {
             _serverQueryHandler.UpdateServerCheck(); // SDK 4
@@ -119,7 +117,7 @@ public class ServerMultiplayManager : MonoBehaviour
 
         // It's possible this is a cold start allocation (no event will fire)
         // I believe the source for this is from the Photon Fusion BattleRoyal example code,
-        // not entirely sure if this is necessary.
+        // not entirely sure if this is necessary, more testing required.
         // https://doc.photonengine.com/en-us/fusion/current/game-samples/fusion-br/multiplay
         if (!string.IsNullOrEmpty(MultiplayService.Instance.ServerConfig.AllocationId))
         {
@@ -171,7 +169,35 @@ public class ServerMultiplayManager : MonoBehaviour
         }
     }
 
-    // TODO: not sure what this is for yet...
+    public void UpdatePlayerCount(int count)
+    {
+        Debug.Log("UpdatePlayerCount: " + count);
+        _serverQueryHandler.CurrentPlayers = (ushort)count;
+    }
+
+    /// <summary>
+    /// Unready the server. This is to indicate that the server is in some condition which means it cannot accept players.
+    /// For example, after a game has ended and you need to reset the server to prepare for a new match.
+    /// </summary>
+    public async Task UnReadyServer()
+    {
+        Debug.Log("UnReadyServer");
+        await MultiplayService.Instance.UnreadyServerAsync();
+        _serverEvents?.UnsubscribeAsync();
+    }
+
+    private void OnError(MultiplayError error)
+    {
+        Debug.Log("MultiplayManager OnError: " + error.Reason);
+    }
+
+    private void OnDeallocate(MultiplayDeallocation deallocation)
+    {
+        Debug.Log("Deallocated");
+    }
+
+    // TODO: I'm still not 100% on what the use case for this subscription looks like...
+    // DOCS: https://docs.unity.com/game-server-hosting/en/manual/sdk/game-server-sdk-for-unity#Handle_Game_Server_Hosting_events
     private void OnSubscriptionStateChanged(MultiplayServerSubscriptionState state)
     {
         switch (state)
@@ -192,25 +218,5 @@ public class ServerMultiplayManager : MonoBehaviour
                 Debug.Log("Subscribing");
                 break;
         }
-    }
-
-    /// <summary>
-    /// Unready the server. This is to indicate that the server is in some condition which means it cannot accept players.
-    /// For example, after a game has ended and you need to reset the server to prepare for a new match.
-    /// </summary>
-    public async Task UnReadyServer()
-    {
-        Debug.Log("UnReadyServer");
-        await MultiplayService.Instance.UnreadyServerAsync();
-    }
-
-    private void OnError(MultiplayError error)
-    {
-        Debug.Log("MultiplayManager OnError: " + error.Reason);
-    }
-
-    private void OnDeallocate(MultiplayDeallocation deallocation)
-    {
-        Debug.Log("Deallocated");
     }
 }

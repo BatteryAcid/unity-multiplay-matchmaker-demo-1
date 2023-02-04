@@ -136,7 +136,7 @@ public class NetworkObjectPool : NetworkBehaviour
     /// </summary>
     public void ReturnNetworkObject(NetworkObject networkObject, GameObject prefab)
     {
-        if (networkObject != null) // case where game ends while this timer was still active
+        if (networkObject != null) // case where game ends while the despawn timer was still active
         {
             var go = networkObject.gameObject;
             go.SetActive(false);

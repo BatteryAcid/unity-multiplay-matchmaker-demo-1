@@ -11,31 +11,7 @@ public class BallActionHandler : MonoBehaviour
     private float _minThrowRate = 0.5f; // half second delay between throws
     private float _throwShim = 0.6f; // makes the throw more playable
 
-    private NetworkObject _nextBallToThrow;
     private BallHitPlayerDelegate _ballHitPlayerDelegate;
-
-    public void Init(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate)
-    {
-        _referencePrefab = referencePrefab;
-        _baseBallThrust = baseBallThrust;
-        _ballHitPlayerDelegate = ballHitPlayerDelegate;
-    }
-
-    public void SoftReadyNextBallToThrow()
-    {
-        _nextBallToThrow = NetworkObjectPool.Singleton.GetNetworkObject(_referencePrefab);
-    }
-
-    private async Task WaitThenDespawn(NetworkObject objectToDespawn)
-    {
-        await Task.Delay(2250);
-
-        NetworkObjectPool.Singleton.ReturnNetworkObject(objectToDespawn, _referencePrefab);
-        if (objectToDespawn.IsSpawned)
-        {
-            objectToDespawn.Despawn(false);
-        }
-    }
 
     public async void ThrowBall(Vector3 cameraForwardVector, float throwKeyPressedTime, Rigidbody Player, string playerDesignation)
     {
@@ -67,6 +43,17 @@ public class BallActionHandler : MonoBehaviour
             _nextThrowTime = Time.time + _minThrowRate;
 
             await WaitThenDespawn(ballToThrow);
+        }
+    }
+
+    private async Task WaitThenDespawn(NetworkObject objectToDespawn)
+    {
+        await Task.Delay(2250);
+
+        NetworkObjectPool.Singleton.ReturnNetworkObject(objectToDespawn, _referencePrefab);
+        if (objectToDespawn.IsSpawned)
+        {
+            objectToDespawn.Despawn(false);
         }
     }
 
@@ -104,5 +91,12 @@ public class BallActionHandler : MonoBehaviour
         // Debug.Log("Throw speed: " + thrustOfBall);
 
         return thrustOfBall;
+    }
+
+    public void Init(GameObject referencePrefab, float baseBallThrust, BallHitPlayerDelegate ballHitPlayerDelegate)
+    {
+        _referencePrefab = referencePrefab;
+        _baseBallThrust = baseBallThrust;
+        _ballHitPlayerDelegate = ballHitPlayerDelegate;
     }
 }
