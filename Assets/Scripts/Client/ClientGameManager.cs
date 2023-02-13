@@ -6,8 +6,8 @@ public class ClientGameManager : MonoBehaviour, IGameManager
 {
     private ClientGamePlayManager _clientGamePlayManager;
     private ClientNetworkManager _clientNetworkManager;
-    private AuthService _authService;
     private ClientMultiplayManager _clientMultiplayManager;
+    private AuthService _authService;
 
     public void Init()
     {
@@ -20,7 +20,7 @@ public class ClientGameManager : MonoBehaviour, IGameManager
         _clientNetworkManager = gameObject.AddComponent<ClientNetworkManager>();
         _clientMultiplayManager = gameObject.AddComponent<ClientMultiplayManager>();
 
-        _clientGamePlayManager.Init(_authService, _clientNetworkManager, _clientMultiplayManager);
+        _clientGamePlayManager.Init(_authService, _clientNetworkManager);
         _clientMultiplayManager.Init(_authService);
     }
 

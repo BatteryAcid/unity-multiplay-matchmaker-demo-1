@@ -1,12 +1,9 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 using Unity.Services.Matchmaker;
 using Unity.Services.Matchmaker.Models;
-using UnityEngine;
 
 // Class is mostly based on:
 // https://github.com/Unity-Technologies/com.unity.services.samples.matchplay/blob/master/Assets/Scripts/Matchplay/Client/Services/MatchplayMatchmaker.cs
@@ -28,7 +25,7 @@ public class MatchmakingResult
     public string resultMessage;
 }
 
-public class MatchplayMatchmaker : IMatchmaker
+public class ClientMatchplayMatchmaker : IMatchmaker
 {
     private string _lastUsedTicket;
     private bool _isMatchmaking = false;

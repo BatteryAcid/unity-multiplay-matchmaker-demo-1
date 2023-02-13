@@ -4,8 +4,7 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
-// TODO: rename to main menu manager
-public class UIManager : MonoBehaviour
+public class MainMenuManager : MonoBehaviour
 {
     public delegate void OnFindMatchPressedDelegate();
     public OnFindMatchPressedDelegate OnFindMatchPressedHandler;
@@ -66,9 +65,9 @@ public class UIManager : MonoBehaviour
     {
         // Debug.Log("UIManager start");
 
-        // NOTE: because this isn't available during the Startup scene, when the ClientGameManager
+        // NOTE: because this isn't available during the Startup scene, when the ClientGamePlayManager
         // is attempting to access it, we must not rely on the Start to initialize
-        // things.  ClientGameManager leverages the local scene change to MainScene
+        // things.  ClientGamePlayManager leverages the local scene change to MainScene
         // to init our delegates and callbacks.
     }
 }

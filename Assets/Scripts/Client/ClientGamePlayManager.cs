@@ -6,9 +6,9 @@ using UnityEngine.SceneManagement;
 public class ClientGamePlayManager : MonoBehaviour
 {
     private AuthService _authService;
-    private UIManager _UIManager;
+    private MainMenuManager _mainMenuManager;
     private ClientNetworkManager _clientNetworkManager;
-    private ClientMultiplayManager _clientMultiplayManager;
+    private IMatchmaker Matchmaker;
 
     public async void FindMatch()
     {
@@ -30,7 +30,7 @@ public class ClientGamePlayManager : MonoBehaviour
         UserData mockUserData = _authService.MockGetUserData();
 
         Debug.Log($"Start matchmaking with {mockUserData}");
-        MatchmakingResult matchmakingResult = await _clientMultiplayManager.FindMatch(mockUserData);
+        MatchmakingResult matchmakingResult = await Matchmaker.FindMatch(mockUserData);
 
         if (matchmakingResult.result == MatchmakerPollingResult.Success)
         {
@@ -51,17 +51,41 @@ public class ClientGamePlayManager : MonoBehaviour
         {
             // Wait until main scene is loaded to look for the UIManager, as the
             // game starts with the Startup scene loaded, which doesn't have the UiManager.
-            _UIManager = GameObject.Find("UIManager").GetComponent<UIManager>();
-            _UIManager.Init(FindMatch);
+            _mainMenuManager = GameObject.Find("MainMenuManager").GetComponent<MainMenuManager>();
+            _mainMenuManager.Init(FindMatch);
         }
     }
 
-    public void Init(AuthService authService, ClientNetworkManager clientNetworkManager, ClientMultiplayManager clientMultiplayManager)
+    public void Init(AuthService authService, ClientNetworkManager clientNetworkManager)
     {
         SceneManager.sceneLoaded += OnNonNetworkSceneLoaded;
 
         _authService = authService;
         _clientNetworkManager = clientNetworkManager;
-        _clientMultiplayManager = clientMultiplayManager;
+
+        if (!ApplicationController.IsLocalTesting)
+        {
+            Matchmaker = new ClientMatchplayMatchmaker();
+        }
+        else
+        {
+            LocalTestingSetup();
+        }
+    }
+
+    // This matchmaker is a mock version for local testing when you want to
+    // avoid hitting the real matchmaking service
+    private void LocalTestingSetup()
+    {
+        Matchmaker = new MockMatchmaker();
+    }
+
+    void OnApplicationQuit()
+    {
+        if (Matchmaker != null)
+        {
+            // must do this to kill the matchmaking polling
+            Matchmaker.Dispose();
+        }
     }
 }
