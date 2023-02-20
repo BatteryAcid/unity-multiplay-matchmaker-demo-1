@@ -3,7 +3,11 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - ball
+  - GamePlayCamera
+  - player1
+  - player2
   layers:
   - Default
   - TransparentFX
