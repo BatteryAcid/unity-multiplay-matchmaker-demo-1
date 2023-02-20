@@ -73,7 +73,7 @@ public class ServerMultiplayManager : MonoBehaviour
             // You can use these values setup match parameters.
             // Note: looks like this can be set with default values first, then updated
             // if the values come in later, which should be followed by a call to UpdateServerCheck.
-            // maxPlayers is used to actually set the max players allowed on server.
+            // maxPlayers is used to set the max players allowed on server.
             // DOCS: https://docs.unity.com/game-server-hosting/en/manual/sdk/game-server-sdk-for-unity#Start_server_query_handler
             // SDK 3
             _serverQueryHandler = await MultiplayService.Instance.StartServerQueryHandlerAsync(
@@ -138,14 +138,12 @@ public class ServerMultiplayManager : MonoBehaviour
 
         // Fixes issue with excessive CPU, not sure if vSyncCount is necessary.
         // https://docs.unity.com/game-server-hosting/guides/troubleshooting.html#Servers_using_too_much_CPU
-        // TODO: Try setting NetworkManager to match this tick rate 60 and see if latency improves
         Application.targetFrameRate = 60;
         QualitySettings.vSyncCount = 0;
 
         // Debug.Log(Application.targetFrameRate);
         // Debug.Log(QualitySettings.vSyncCount);
 
-        // Setup allocations
         _multiplayEventCallbacks = new MultiplayEventCallbacks();
         _multiplayEventCallbacks.Allocate += OnAllocate;
         _multiplayEventCallbacks.Deallocate += OnDeallocate;
@@ -196,7 +194,6 @@ public class ServerMultiplayManager : MonoBehaviour
         Debug.Log("Deallocated");
     }
 
-    // TODO: I'm still not 100% on what the use case for this subscription looks like...
     // DOCS: https://docs.unity.com/game-server-hosting/en/manual/sdk/game-server-sdk-for-unity#Handle_Game_Server_Hosting_events
     private void OnSubscriptionStateChanged(MultiplayServerSubscriptionState state)
     {
